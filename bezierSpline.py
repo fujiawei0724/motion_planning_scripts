@@ -6,6 +6,10 @@
 # @File    : bezierSpline.py
 # @Software: PyCharm
 
+"""
+This code generates b spline trajectory in 3D dimension with scipy.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate as interpolate
