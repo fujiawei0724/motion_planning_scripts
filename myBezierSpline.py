@@ -89,6 +89,36 @@ class CubicBSpline:
             path.append([x_position, y_position])
         return np.array(path)
 
+class QuinticBSpline:
+    def __init__(self, path):
+        assert path.shape[1] == 2
+        
+        points = copy.deepcopy(path)
+        # TODO: add additional process to approximate start point and end point
+        
+        self.segment_num_ = points.shape[0] - 1
+        self.x_coefficients_ = np.zeros((self.segment_num_, 6))
+        self.y_coefficients_ = np.zeros((self.segment_num_, 6))
+        
+        # Calculate coefficients
+        for i in range(0, self.segment_num_):
+            self.x_coefficients_[i][0] = (1.0 / 120.0) * points[i][0] + (26.0 / 120.0) * points[i + 1][0] + (33.0 / 60.0) * points[i + 2][0] + (13.0 / 60.0) * points[i + 3][0] + (1.0 / 120.0) * points[i + 4][0]
+            self.x_coefficients_[i][1] = (-5.0 / 120.0) * points[i][0] + (-50.0 / 120.0) * points[i + 1][0] + (25.0 / 60.0) * points[i + 3][0] + (5.0 / 120.0) * points[i + 4][0]
+            self.x_coefficients_[i][2] = (10.0 / 120.0) * points[i][0] + (20.0 / 120.0) * points[i + 1][0] + (-30.0 / 60.0) * points[i + 2][0] + (10.0 / 60.0) * points[i + 3][0] + (10.0 / 120.0) * points[i + 4][0]
+            self.x_coefficients_[i][3] = (-10.0 / 120.0) * points[i][0] + (20.0 / 120.0) * points[i + 1][0] + (-10.0 / 60.0) * points[i + 3][0] + (10.0 / 120.0) * points[i + 4][0]
+            self.x_coefficients_[i][4] = (5.0 / 120.0) * points[i][0] + (-20.0 / 120.0) * points[i + 1][0] + (15.0 / 60.0) * points[i + 2][0] + (-10.0 / 60.0) * points[i + 3][0] + (5.0 / 120.0) * points[i + 4][0]
+            self.x_coefficients_[i][5] = (-1.0 / 120.0) * points[i][0] + (5.0 / 120.0) * points[i + 1][0] + (-5.0 / 60.0) * points[i + 2][0] + (5.0 / 60.0) * points[i + 3][0] + (-5.0 / 120.0) * points[i + 4][0] + (1.0 / 120.0) * points[i + 5][0]
+            self.y_coefficients_[i][0] = (1.0 / 120.0) * points[i][1] + (26.0 / 120.0) * points[i + 1][1] + (33.0 / 60.0) * points[i + 2][1] + (13.0 / 60.0) * points[i + 3][1] + (1.0 / 120.0) * points[i + 4][1]
+            self.y_coefficients_[i][1] = (-5.0 / 120.0) * points[i][1] + (-50.0 / 120.0) * points[i + 1][1] + (25.0 / 60.0) * points[i + 3][1] + (5.0 / 120.0) * points[i + 4][1]
+            self.y_coefficients_[i][2] = (10.0 / 120.0) * points[i][1] + (20.0 / 120.0) * points[i + 1][1] + (-30.0 / 60.0) * points[i + 2][1] + (10.0 / 60.0) * points[i + 3][1] + (10.0 / 120.0) * points[i + 4][1]
+            self.y_coefficients_[i][3] = (-10.0 / 120.0) * points[i][1] + (20.0 / 120.0) * points[i + 1][1] + (-10.0 / 60.0) * points[i + 3][1] + (10.0 / 120.0) * points[i + 4][1]
+            self.y_coefficients_[i][4] = (5.0 / 120.0) * points[i][1] + (-20.0 / 120.0) * points[i + 1][1] + (15.0 / 60.0) * points[i + 2][1] + (-10.0 / 60.0) * points[i + 3][1] + (5.0 / 120.0) * points[i + 4][1]
+            self.y_coefficients_[i][5] = (-1.0 / 120.0) * points[i][1] + (5.0 / 120.0) * points[i + 1][1] + (-5.0 / 60.0) * points[i + 2][1] + (5.0 / 60.0) * points[i + 3][1] + (-5.0 / 120.0) * points[i + 4][1] + (1.0 / 120.0) * points[i + 5][1]
+        
+        
+        
+
+
 
 
 
@@ -104,7 +134,7 @@ if __name__ == '__main__':
     # Generate interpolated path
     interpolated_path = cubic_b_spline.generateInterpolatedPath(0.01)
 
-    print(interpolated_path)
+    # print(interpolated_path)
 
     # Visualization
     plt.figure(0, (12, 5))
