@@ -17,8 +17,10 @@ import copy
 
 class CubicBSpline:
     def __init__(self, path):
-        assert(path.shape == (-1, 2))
+        assert path.shape[1] == 2
         points = np.zeros((path.shape[0] + 2, 2))
+        for i in range(0, len(path)):
+            points[i + 1] = path[i]
         point_num = points.shape[0]
         assert point_num > 3
 
@@ -28,6 +30,7 @@ class CubicBSpline:
         points[point_num - 1][0] = 2.0 * path[-1][0] - path[-2][0]
         points[point_num - 1][1] = 2.0 * path[-1][1] - path[-2][1]
 
+
         # Determine segments number
         self.segment_num_ = point_num - 3
         self.x_coefficients_ = np.zeros((self.segment_num_, 4))
@@ -35,14 +38,14 @@ class CubicBSpline:
 
         # Determine coefficients
         for i in range(0, point_num - 3):
-            self.x_coefficients_[i][0] = 1.0 / 6.0 * (points[i].x_ + 4.0 * points[i + 1].x_ + points[i + 2].x_)
-            self.x_coefficients_[i][1] = -0.5 * (points[i].x_ - points[i + 2].x_)
-            self.x_coefficients_[i][2] = 0.5 * (points[i].x_ - 2.0 * points[i + 1].x_ + points[i + 2].x_)
-            self.x_coefficients_[i][3] = -1.0 / 6.0 * (points[i].x_ - 3.0 * points[i + 1].x_ + 3.0 * points[i + 2].x_ - points[i + 3].x_)
-            self.y_coefficients_[i][0] = 1.0 / 6.0 * (points[i].y_ + 4.0 * points[i + 1].y_ + points[i + 2].y_)
-            self.y_coefficients_[i][1] = -0.5 * (points[i].y_ - points[i + 2].y_)
-            self.y_coefficients_[i][2] = 0.5 * (points[i].y_ - 2.0 * points[i + 1].y_ + points[i + 2].y_)
-            self.y_coefficients_[i][3] = -1.0 / 6.0 * (points[i].y_ - 3.0 * points[i + 1].y_ + 3.0 * points[i + 2].y_ - points[i + 3].y_)
+            self.x_coefficients_[i][0] = 1.0 / 6.0 * (points[i][0] + 4.0 * points[i + 1][0] + points[i + 2][0])
+            self.x_coefficients_[i][1] = -0.5 * (points[i][0] - points[i + 2][0])
+            self.x_coefficients_[i][2] = 0.5 * (points[i][0] - 2.0 * points[i + 1][0] + points[i + 2][0])
+            self.x_coefficients_[i][3] = -1.0 / 6.0 * (points[i][0] - 3.0 * points[i + 1][0] + 3.0 * points[i + 2][0] - points[i + 3][0])
+            self.y_coefficients_[i][0] = 1.0 / 6.0 * (points[i][1] + 4.0 * points[i + 1][1] + points[i + 2][1])
+            self.y_coefficients_[i][1] = -0.5 * (points[i][1] - points[i + 2][1])
+            self.y_coefficients_[i][2] = 0.5 * (points[i][1] - 2.0 * points[i + 1][1] + points[i + 2][1])
+            self.y_coefficients_[i][3] = -1.0 / 6.0 * (points[i][1] - 3.0 * points[i + 1][1] + 3.0 * points[i + 2][1] - points[i + 3][1])
 
     # Transform input
     def inputVerify(self, u):
@@ -60,26 +63,54 @@ class CubicBSpline:
             if u < i + 1:
                 remain = u - i
                 return i, remain
-        return self.segment_num_, 1.0
+        return self.segment_num_ - 1, 1.0
 
     # Calculate x position
     def xValue(self, u):
         u = self.inputVerify(u)
-        u, index = self.getSegmentInfo(u)
+        index, u = self.getSegmentInfo(u)
         return self.x_coefficients_[index][0] + self.x_coefficients_[index][1] * u + self.x_coefficients_[index][2] * u * u + self.x_coefficients_[index][3] * u * u * u
 
     # Calculate y positon
     def yValue(self, u):
         u = self.inputVerify(u)
-        u, index = self.getSegmentInfo(u)
+        index, u = self.getSegmentInfo(u)
         return self.y_coefficients_[index][0] + self.y_coefficients_[index][1] * u + self.y_coefficients_[index][2] * u * u + self.y_coefficients_[index][3] * u * u * u
+
+    # Generate interpolated path
+    def generateInterpolatedPath(self, sample_gap):
+        print(self.x_coefficients_)
+        print(self.y_coefficients_)
+        samples = np.linspace(0.0, self.segment_num_, int(self.segment_num_ / sample_gap))
+        path = []
+        for sample_value in samples:
+            x_position = self.xValue(sample_value)
+            y_position = self.yValue(sample_value)
+            path.append([x_position, y_position])
+        return np.array(path)
+
 
 
 
 if __name__ == '__main__':
-    
+    path_scatters = np.array([[0.0, 0.0],
+                              [1.0, 5.0],
+                              [2.0, 6.0],
+                              [3.0, 15.0],
+                              [4.0, 10.0],
+                              [6.0, 8.0]])
+    cubic_b_spline = CubicBSpline(path_scatters)
 
+    # Generate interpolated path
+    interpolated_path = cubic_b_spline.generateInterpolatedPath(0.01)
 
+    print(interpolated_path)
+
+    # Visualization
+    plt.figure(0, (12, 5))
+    plt.scatter(path_scatters[:, 0], path_scatters[:, 1], c='g', s=5.0)
+    plt.plot(interpolated_path[:, 0], interpolated_path[:, 1], c='r', linewidth=0.5)
+    plt.show()
 
 
 
