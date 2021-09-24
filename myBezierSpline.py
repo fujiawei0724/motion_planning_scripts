@@ -79,8 +79,8 @@ class CubicBSpline:
 
     # Generate interpolated path
     def generateInterpolatedPath(self, sample_gap):
-        print(self.x_coefficients_)
-        print(self.y_coefficients_)
+        # print(self.x_coefficients_)
+        # print(self.y_coefficients_)
         samples = np.linspace(0.0, self.segment_num_, int(self.segment_num_ / sample_gap))
         path = []
         for sample_value in samples:
@@ -147,8 +147,8 @@ class QuinticBSpline:
 
     # Generate interpolated path
     def generateInterpolatedPath(self, sample_gap):
-        print(self.x_coefficients_)
-        print(self.y_coefficients_)
+        # print(self.x_coefficients_)
+        # print(self.y_coefficients_)
         samples = np.linspace(0.0, self.segment_num_, int(self.segment_num_ / sample_gap))
         path = []
         for sample_value in samples:
@@ -186,8 +186,8 @@ if __name__ == '__main__':
     # Visualization
     plt.figure(0, (12, 5))
     plt.scatter(path_scatters[:, 0], path_scatters[:, 1], c='g', s=5.0)
-    plt.plot(cubic_interpolated_path[:, 0], cubic_interpolated_path[:, 1], c='r', linewidth=0.5, label='cubic b-spline')
-    plt.plot(quintic_interpolated_path[:, 0], quintic_interpolated_path[:, 1], c='b', linewidth=0.5, label='quintic b-spline')
+    plt.plot(cubic_interpolated_path[:, 0], cubic_interpolated_path[:, 1], c='r', linewidth=0.5, label='Cubic B-Spline')
+    plt.plot(quintic_interpolated_path[:, 0], quintic_interpolated_path[:, 1], c='b', linewidth=0.5, label='Quintic B-Spline')
     plt.legend()
     plt.show()
 
