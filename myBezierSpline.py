@@ -114,6 +114,52 @@ class QuinticBSpline:
             self.y_coefficients_[i][3] = (-10.0 / 120.0) * points[i][1] + (20.0 / 120.0) * points[i + 1][1] + (-10.0 / 60.0) * points[i + 3][1] + (10.0 / 120.0) * points[i + 4][1]
             self.y_coefficients_[i][4] = (5.0 / 120.0) * points[i][1] + (-20.0 / 120.0) * points[i + 1][1] + (15.0 / 60.0) * points[i + 2][1] + (-10.0 / 60.0) * points[i + 3][1] + (5.0 / 120.0) * points[i + 4][1]
             self.y_coefficients_[i][5] = (-1.0 / 120.0) * points[i][1] + (5.0 / 120.0) * points[i + 1][1] + (-5.0 / 60.0) * points[i + 2][1] + (5.0 / 60.0) * points[i + 3][1] + (-5.0 / 120.0) * points[i + 4][1] + (1.0 / 120.0) * points[i + 5][1]
+
+    # Transform input
+    def inputVerify(self, u):
+        if u < 0.0:
+            return 0.0
+        elif u > self.segment_num_:
+            return self.segment_num_
+        else:
+            return u
+
+    # Generate input information
+    def getSegmentInfo(self, u):
+        u = self.inputVerify(u)
+        for i in range(0, self.segment_num_):
+            if u < i + 1:
+                remain = u - i
+                return i, remain
+        return self.segment_num_ - 1, 1.0
+
+    # Calculate x position
+    def xValue(self, u):
+        u = self.inputVerify(u)
+        index, u = self.getSegmentInfo(u)
+        return self.x_coefficients_[index][0] + self.x_coefficients_[index][1] * u + self.x_coefficients_[index][2] * u * u + self.x_coefficients_[index][3] * u * u * u + self.x_coefficients_[index][4] * u * u * u * u + self.x_coefficients_[index][5] * u * u * u * u * u
+
+    # Calculate y positon
+    def yValue(self, u):
+        u = self.inputVerify(u)
+        index, u = self.getSegmentInfo(u)
+        return self.y_coefficients_[index][0] + self.y_coefficients_[index][1] * u + self.y_coefficients_[index][2] * u * u + self.y_coefficients_[index][3] * u * u * u + self.y_coefficients_[index][4] * u * u * u * u + self.y_coefficients_[index][5] * u * u * u * u * u
+
+    # Generate interpolated path
+    def generateInterpolatedPath(self, sample_gap):
+        print(self.x_coefficients_)
+        print(self.y_coefficients_)
+        samples = np.linspace(0.0, self.segment_num_, int(self.segment_num_ / sample_gap))
+        path = []
+        for sample_value in samples:
+            x_position = self.xValue(sample_value)
+            y_position = self.yValue(sample_value)
+            path.append([x_position, y_position])
+        return np.array(path)
+
+
+
+
         
         
         
