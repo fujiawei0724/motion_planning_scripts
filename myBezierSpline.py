@@ -96,7 +96,7 @@ class QuinticBSpline:
         points = copy.deepcopy(path)
         # TODO: add additional process to approximate start point and end point
         
-        self.segment_num_ = points.shape[0] - 1
+        self.segment_num_ = points.shape[0] - 5
         self.x_coefficients_ = np.zeros((self.segment_num_, 6))
         self.y_coefficients_ = np.zeros((self.segment_num_, 6))
         
@@ -170,18 +170,25 @@ if __name__ == '__main__':
                               [2.0, 6.0],
                               [3.0, 15.0],
                               [4.0, 10.0],
-                              [6.0, 8.0]])
+                              [6.0, 8.0],
+                              [7.0, 10.0],
+                              [8.0, 12.0],
+                              [9.0, 15.0],
+                              [10.0, 16.0]])
     cubic_b_spline = CubicBSpline(path_scatters)
+    quintic_b_spline = QuinticBSpline(path_scatters)
 
     # Generate interpolated path
-    interpolated_path = cubic_b_spline.generateInterpolatedPath(0.01)
+    cubic_interpolated_path = cubic_b_spline.generateInterpolatedPath(0.01)
+    quintic_interpolated_path = quintic_b_spline.generateInterpolatedPath(0.01)
 
-    # print(interpolated_path)
 
     # Visualization
     plt.figure(0, (12, 5))
     plt.scatter(path_scatters[:, 0], path_scatters[:, 1], c='g', s=5.0)
-    plt.plot(interpolated_path[:, 0], interpolated_path[:, 1], c='r', linewidth=0.5)
+    plt.plot(cubic_interpolated_path[:, 0], cubic_interpolated_path[:, 1], c='r', linewidth=0.5, label='cubic b-spline')
+    plt.plot(quintic_interpolated_path[:, 0], quintic_interpolated_path[:, 1], c='b', linewidth=0.5, label='quintic b-spline')
+    plt.legend()
     plt.show()
 
 
