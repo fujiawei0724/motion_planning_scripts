@@ -94,7 +94,6 @@ class QuinticBSpline:
         assert path.shape[1] == 2
         
         # points = copy.deepcopy(path)
-        # TODO: add additional process to approximate start point and end point
         points = np.zeros((path.shape[0] + 4, 2))
         for i in range(0, len(path)):
             points[i + 2] = path[i]
@@ -102,7 +101,6 @@ class QuinticBSpline:
         points[1] = 2.0 * points[2] - points[3]
         points[-2] = 2.0 * points[-3] - points[-4]
         points[-1] = 2.0 * points[-3] - points[-5]
-
 
         self.segment_num_ = points.shape[0] - 5
         self.x_coefficients_ = np.zeros((self.segment_num_, 6))
@@ -183,13 +181,17 @@ if __name__ == '__main__':
     #                           [8.0, 12.0],
     #                           [9.0, 15.0],
     #                           [10.0, 16.0]])
-    path_scatters = np.random.randint(0, 100, size=(15, 2))
+    path_scatters = np.random.randint(0, 1000, size=(15, 2))
     cubic_b_spline = CubicBSpline(path_scatters)
     quintic_b_spline = QuinticBSpline(path_scatters)
 
     # Generate interpolated path
     cubic_interpolated_path = cubic_b_spline.generateInterpolatedPath(0.01)
     quintic_interpolated_path = quintic_b_spline.generateInterpolatedPath(0.01)
+
+    print('start point deviance: {}'.format(np.linalg.norm(path_scatters[0] - quintic_interpolated_path[0])))
+    print('end point deviance: {}'.format(np.linalg.norm(path_scatters[-1] - quintic_interpolated_path[-1])))
+
 
 
     # Visualization

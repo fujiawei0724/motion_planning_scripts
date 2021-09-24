@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate as interpolate
 from mpl_toolkits.mplot3d import Axes3D
+from myBezierSpline import QuinticBSpline
 
 class B_Spline:
     def __init__(self):
@@ -29,24 +30,26 @@ class B_Spline:
 
         s_t_projection_points = np.vstack((s_projection, t_projection)).T
         d_t_projection_points = np.vstack((d_projection, t_projection)).T
-        # print(s_t_projection_points)
 
         # 2D interpolation
-        s_t_interpolation = self.BSplineInterpolation(s_t_projection_points)
-        d_t_interpolation = self.BSplineInterpolation(d_t_projection_points)
+        # s_t_interpolation = self.BSplineInterpolation(s_t_projection_points)
+        # d_t_interpolation = self.BSplineInterpolation(d_t_projection_points)
+
+        s_t_interpolation = self.MyQuinticBSpline(s_t_projection_points)
+        d_t_interpolation = self.MyQuinticBSpline(d_t_projection_points)
         assert(s_t_interpolation[:, 0].all() == d_t_interpolation[:, 0].all())
 
         # Construct 3D trajectory
-        s_dimension = s_t_interpolation[:, 1]
-        d_dimension = d_t_interpolation[:, 1]
-        t_dimension = s_t_interpolation[:, 0]
+        s_dimension = s_t_interpolation[:, 0]
+        d_dimension = d_t_interpolation[:, 0]
+        t_dimension = s_t_interpolation[:, 1]
         trajectory_points = np.vstack((s_dimension, d_dimension, t_dimension)).T
 
         return trajectory_points
 
 
 
-    # 2D b-spline interpolation
+    # 2D b-spline interpolation use scipy
     def BSplineInterpolation(self, project_points):
         assert len(project_points[0]) == 2
         x = project_points[:, 1]
@@ -56,6 +59,13 @@ class B_Spline:
         x_min, x_max = min(x), max(x)
         xx = np.linspace(x_min, x_max, 100)
         return np.vstack((xx, b_spline(xx))).T
+
+    # Quintic B-spline without external libraries
+    def MyQuinticBSpline(self, project_points):
+        assert len(project_points[0]) == 2
+        quintic_b_spline = QuinticBSpline(project_points)
+        return quintic_b_spline.generateInterpolatedPath(0.01)
+
 
 
 
@@ -76,7 +86,6 @@ if __name__ == '__main__':
     trajectory = trajectory_generator.TrajectoryGeneration(trajectory_scatter_points)
 
     trajectory_scatter_points = trajectory_scatter_points.T
-    print(trajectory_scatter_points)
     # Visualization
     fig = plt.figure()
     ax_1 = Axes3D(fig)
