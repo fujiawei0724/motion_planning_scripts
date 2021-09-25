@@ -7,7 +7,7 @@
 # @Software: PyCharm
 
 """
-This code generates b spline trajectory in 3D dimension with scipy.
+This code generates b spline trajectory in 3D dimension.
 """
 
 import numpy as np
@@ -21,7 +21,7 @@ class B_Spline:
         pass
 
     # Generate 3D trajectory
-    def TrajectoryGeneration(self, scatter_points):
+    def trajectoryGeneration(self, scatter_points):
         # point[0] means s dimension, point[1] means d dimension, point[2] means t dimension
         assert len(scatter_points[0]) == 3
         s_projection = scatter_points[:, 0]
@@ -35,8 +35,8 @@ class B_Spline:
         # s_t_interpolation = self.BSplineInterpolation(s_t_projection_points)
         # d_t_interpolation = self.BSplineInterpolation(d_t_projection_points)
 
-        s_t_interpolation = self.MyQuinticBSpline(s_t_projection_points)
-        d_t_interpolation = self.MyQuinticBSpline(d_t_projection_points)
+        s_t_interpolation = self.myQuinticBSpline(s_t_projection_points)
+        d_t_interpolation = self.myQuinticBSpline(d_t_projection_points)
         assert(s_t_interpolation[:, 0].all() == d_t_interpolation[:, 0].all())
 
         # Construct 3D trajectory
@@ -61,7 +61,7 @@ class B_Spline:
         return np.vstack((xx, b_spline(xx))).T
 
     # Quintic B-spline without external libraries
-    def MyQuinticBSpline(self, project_points):
+    def myQuinticBSpline(self, project_points):
         assert len(project_points[0]) == 2
         quintic_b_spline = QuinticBSpline(project_points)
         return quintic_b_spline.generateInterpolatedPath(0.01)
@@ -83,7 +83,7 @@ if __name__ == '__main__':
 
     # Trajectory generation
     trajectory_generator = B_Spline()
-    trajectory = trajectory_generator.TrajectoryGeneration(trajectory_scatter_points)
+    trajectory = trajectory_generator.trajectoryGeneration(trajectory_scatter_points)
 
     trajectory_scatter_points = trajectory_scatter_points.T
     # Visualization
