@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 
 class QuinticBSpline:
 
+    """
+    Quintic B-spline with coefficient m.
+    """
     def __init__(self, path):
         assert path.shape[1] == 2
 
@@ -119,23 +122,23 @@ class QuinticBSpline:
         y_position = self.yValue(m)
         return np.array([x_position, y_position])
 
-class Tools:
-
-    # Transform time dimension to coefficient m
-    @staticmethod
-    def t_to_m(t_start, t_end, m_start, m_end, t_cur):
-        assert t_end >= t_cur >= t_start
-        rate = (t_cur - t_start) / (t_end - t_start)
-        return m_start + rate * (m_end - m_start)
-
-    # Transform time list to the list of coefficient n
-    @staticmethod
-    def transformProjections(t_start, t_end, m_start, m_end, sample_num):
-        t_samples = np.linspace(t_start, t_end, sample_num)
-        m_samples = []
-        for t_sample in t_samples:
-            m_samples.append(Tools.t_to_m(t_start, t_end, m_start, m_end, t_sample))
-        return np.array(m_samples)
+# class Tools:
+#
+#     # Transform time dimension to coefficient m
+#     @staticmethod
+#     def t_to_m(t_start, t_end, m_start, m_end, t_cur):
+#         assert t_end >= t_cur >= t_start
+#         rate = (t_cur - t_start) / (t_end - t_start)
+#         return m_start + rate * (m_end - m_start)
+#
+#     # Transform time list to the list of coefficient n
+#     @staticmethod
+#     def transformProjections(t_start, t_end, m_start, m_end, sample_num):
+#         t_samples = np.linspace(t_start, t_end, sample_num)
+#         m_samples = []
+#         for t_sample in t_samples:
+#             m_samples.append(Tools.t_to_m(t_start, t_end, m_start, m_end, t_sample))
+#         return np.array(m_samples)
 
 if __name__ == '__main__':
     path_scatters = np.array([[0.0, 0.0],
@@ -154,10 +157,10 @@ if __name__ == '__main__':
     quintic_interpolated_path = quintic_b_spline.generateInterpolatedPath(0.01)
     # print(quintic_interpolated_path)
 
-    # Test projection precision
-    t_start, t_end = path_scatters[0][0], path_scatters[-1][0]
-    m_start, m_end = 0.0, path_scatters.shape[0] - 1
-    m_samples = Tools.transformProjections(t_start, t_end, m_start, m_end, 1000)
+    # # Test projection precision
+    # t_start, t_end = path_scatters[0][0], path_scatters[-1][0]
+    # m_start, m_end = 0.0, path_scatters.shape[0] - 1
+    # m_samples = Tools.transformProjections(t_start, t_end, m_start, m_end, 1000)
 
     # Visualization scatters
     plt.figure(0, (12, 5))
