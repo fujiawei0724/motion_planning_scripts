@@ -183,6 +183,7 @@ if __name__ == '__main__':
     cut_off_points = np.array(cut_off_points)
     plt.scatter(cut_off_points[:, 0], cut_off_points[:, 1], c='k', s=10.0, label='cut-off point')
     plt.legend()
+    plt.title('Quintic B-spline projection relation')
     plt.grid()
 
 
@@ -197,6 +198,8 @@ if __name__ == '__main__':
 
     print("t cut-off points: {}".format(t_cut_off_samples))
     print("m cut-off points: {}".format(m_cut_off_samples))
+    print("t cut-off points diff: {}".format(np.diff(t_cut_off_samples)))
+    print("m cut-off points diff: {}".format(np.diff(m_cut_off_samples)))
 
     plt.show()
 
