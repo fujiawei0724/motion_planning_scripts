@@ -188,6 +188,10 @@ if __name__ == '__main__':
 
 
     # Output corresponding relation
+    """
+    t means trajectory's time dimension,
+    m denotes the coefficients of quintic B-spline.
+    """
     t_cut_off_samples = copy.deepcopy(cut_off_points[:, 0])
     t_cut_off_samples = np.insert(t_cut_off_samples, 0, path_scatters[0][0])
     t_cut_off_samples = np.append(t_cut_off_samples, path_scatters[-1][0])
