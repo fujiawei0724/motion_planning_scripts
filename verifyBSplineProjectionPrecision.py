@@ -30,6 +30,7 @@ class QuinticBSpline:
         points[-2] = 2.0 * points[-3] - points[-4]
         points[-1] = 2.0 * points[-3] - points[-5]
 
+        self.points_ = points
         self.segment_num_ = points.shape[0] - 5
         self.x_coefficients_ = np.zeros((self.segment_num_, 6))
         self.y_coefficients_ = np.zeros((self.segment_num_, 6))
