@@ -10,32 +10,46 @@ This code is used to simplify the optimization objective function, calculate Hes
 
 import copy
 import numpy as np
+np.set_printoptions(threshold=float('inf'))
 import scipy
 import matplotlib.pyplot as plt
 from verifyBSplineProjectionPrecision import QuinticBSpline
 
+EPS = 1e-7
 
 class QuinticBSplineOptimizer:
     def __init__(self, initial_control_points):
         assert initial_control_points.shape[1] == 2
         self.initial_control_points_ = copy.deepcopy(initial_control_points)
+        self.segment_num_ = initial_control_points.shape[0] - 1
 
-    # Generate quintic B-spline using control points
-    def calcQuinticBspline(self, control_points):
-        assert control_points.shape[1] == 2 and control_points.shape[0] >= 2
-        quintic_b_spline = QuinticBSpline(control_points)
-        quintic_interpolated_path = quintic_b_spline.generateInterpolatedPath(0.01)
-        return quintic_interpolated_path
-
-    # Calculate optimization objective function of quintic B-spline
-    def calcObjectiveFunction(self, interpolated_path):
         """
         t means trajectory's time dimension,
         m denotes the coefficients of quintic B-spline,
         ordinate means the s or l value.
         """
+        self.t_start_ = initial_control_points[0][1]
+        self.t_end_ = initial_control_points[-1][1]
+        self.m_start_ = 0.0
+        self.m_end_ = self.segment_num_
+
+        # Generate initial quintic B-spline
+        self.initial_quintic_b_spline_ = QuinticBSpline(initial_control_points)
+        self.initial_quintic_interpolated_path_ = self.initial_quintic_b_spline_.generateInterpolatedPath(0.01)
+
+    # Calculate optimization objective function of quintic B-spline
+    def calcObjectiveFunction(self):
         # Firstly, calculate the cut-off points of t and m
-        
+        m_cut_off_points = np.arange(self.m_start_, self.m_end_ + EPS, 1.0)
+        t_cut_off_points = []
+        for sample_m in m_cut_off_points:
+            t_cut_off_points.append(self.initial_quintic_b_spline_.generateScatterPoint(sample_m)[0])
+        t_cut_off_points = np.array(t_cut_off_points)
+
+        # Secondly, calculate objective cost for each segment
+
+
+
 
     # Optimize process
     def optimize(self):
@@ -49,18 +63,12 @@ if __name__ == '__main__':
                               [2.0, 6.0],
                               [3.0, 15.0],
                               [4.0, 10.0],
+                              [5.0, 15.0],
                               [6.0, 8.0],
                               [7.0, 10.0],
                               [8.0, 12.0],
                               [9.0, 15.0],
                               [10.0, 16.0]])
 
-    # Generate quintic B-spline
-    quintic_b_spline = QuinticBSpline(path_scatters)
-    quintic_interpolated_path = quintic_b_spline.generateInterpolatedPath(0.01)
-
-    # Visualization quintic B-spline
-    plt.figure(0, (12, 5))
-    plt.scatter(path_scatters[:, 0], path_scatters[:, 1], c='r', s=10.0)
-    plt.plot(quintic_interpolated_path[:, 0], quintic_interpolated_path[:, 1], c='b', linewidth=1.0)
-    plt.show()
+    quintic_b_spline_optimizier = QuinticBSplineOptimizer(path_scatters)
+    quintic_b_spline_optimizier.calcObjectiveFunction()
