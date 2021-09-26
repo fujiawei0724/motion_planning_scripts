@@ -169,8 +169,9 @@ if __name__ == '__main__':
     # Visualization segments using different colors
     index = 0
     segments_num = int(max(quintic_interpolated_path[:, 2]))
+    print("segment number: {}".format(segments_num))
     cut_off_points = []
-    for i in range(0, segments_num + 1):
+    for i in range(0, segments_num):
         start_index = index
         end_index = index
         for j in range(start_index, len(quintic_interpolated_path)):
@@ -179,7 +180,7 @@ if __name__ == '__main__':
                 if i < segments_num - 1:
                     cut_off_points.append(quintic_interpolated_path[j])
                 break
-        plt.plot(quintic_interpolated_path[start_index:end_index, 0], quintic_interpolated_path[start_index:end_index, 1], c=(0.5, i / segments_num, 0.5), linewidth=1.0, label='segment: {}'.format(i))
+        plt.plot(quintic_interpolated_path[start_index:end_index, 0], quintic_interpolated_path[start_index:end_index, 1], c=(0.5, i / segments_num, 0.5), linewidth=1.0, label='segment: {}'.format(i + 1))
         index = end_index
 
     # Visualization cut-off points
