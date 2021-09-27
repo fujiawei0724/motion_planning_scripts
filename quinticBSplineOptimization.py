@@ -80,11 +80,6 @@ class OptimizationTools:
 
         return matrix(A), matrix(b)
 
-
-
-
-
-
     # Calculate start time of a specified segment
     @staticmethod
     def calcStartTime(segment_control_points):
@@ -97,13 +92,42 @@ class OptimizationTools:
         assert segment_control_points.shape == (6, 2)
         return (1.0 / 120.0) * segment_control_points[1][0] + (13.0 / 60.0) * segment_control_points[2][0] + (33.0 / 60.0) * segment_control_points[3][0] + (26.0 / 120.0) * segment_control_points[4][0] + (1.0 / 120.0) * segment_control_points[5][0]
 
+    # Optimization function
+    @staticmethod
+    def quinticBSplineOptimization(initial_control_points):
+        # Construct all control points
+        initial_quintic_b_spline = QuinticBSpline(path_scatters)
+        all_control_points = initial_quintic_b_spline.points_
+
+        # Generate optimization objective function
+        P = OptimizationTools.calcPMatrix(all_control_points)
+        q = matrix(np.zeros((all_control_points.shape[0],)))
+
+        # Determine unequal constrain conditions
+        # G = matrix(np.zeros((1, all_control_points.shape[0])))
+        # h = matrix(np.zeros((1, )))
+
+        # Determine equal constrain condition
+        A, b = OptimizationTools.calcAbMatrix(all_control_points)
+        # Solve quadratic optimization problem
+        res = solvers.qp(P, q, None, None, A, b)
+
+        # print(res['x'])
+
+        # Construct optimized control points
+        optimized_y = np.array(res['x'][2:-2]).reshape((1, -1))
+        time_scatter_points = path_scatters[:, 0]
+        optimized_control_points = np.vstack((time_scatter_points, optimized_y)).T
+
+        return optimized_control_points
+
 
 if __name__ == '__main__':
     path_scatters = np.array([[0.0, 0.0],
                               [1.0, 5.0],
                               [2.0, 6.0],
                               [3.0, 15.0],
-                              [4.0, 10.0],
+                              [4.0, 1000.0],
                               # [5.0, 15.0],
                               # [6.0, 8.0],
                               # [7.0, 10.0],
@@ -111,34 +135,14 @@ if __name__ == '__main__':
                               [9.0, 15.0],
                               [10.0, 16.0]])
 
-    # Construct all control points
+    optimized_control_points = OptimizationTools.quinticBSplineOptimization(path_scatters)
+
+    # Construct initial and optimized quintic B-spline
     initial_quintic_b_spline = QuinticBSpline(path_scatters)
-    all_control_points = initial_quintic_b_spline.points_
     initial_quintic_b_spline_path = initial_quintic_b_spline.generateInterpolatedPath(0.01)
-
-    # Generate optimization objective function
-    P = OptimizationTools.calcPMatrix(all_control_points)
-    q = matrix(np.zeros((all_control_points.shape[0], )))
-
-    # Determine unequal constrain conditions
-    # G = matrix(np.zeros((1, all_control_points.shape[0])))
-    # h = matrix(np.zeros((1, )))
-
-    # Determine equal constrain condition
-    A, b = OptimizationTools.calcAbMatrix(all_control_points)
-    # Solve quadratic optimization problem
-    res = solvers.qp(P, q, None, None, A, b)
-
-    # print(res['x'])
-
-    # Construct optimized control points
-    optimized_y = np.array(res['x'][2:-2]).reshape((1, -1))
-    time_scatter_points = path_scatters[:, 0]
-    optimized_control_points = np.vstack((time_scatter_points, optimized_y)).T
-
-    # Construct optimized quintic B-spline
     optimized_quintic_B_spline = QuinticBSpline(optimized_control_points)
     optimized_quintic_B_spline_path = optimized_quintic_B_spline.generateInterpolatedPath(0.01)
+
 
     # # Output
     # print("Initial control points: {}".format(path_scatters))
