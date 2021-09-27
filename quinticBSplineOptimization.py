@@ -112,8 +112,9 @@ if __name__ == '__main__':
                               [10.0, 16.0]])
 
     # Construct all control points
-    quintic_b_spline = QuinticBSpline(path_scatters)
-    all_control_points = quintic_b_spline.points_
+    initial_quintic_b_spline = QuinticBSpline(path_scatters)
+    all_control_points = initial_quintic_b_spline.points_
+    initial_quintic_b_spline_path = initial_quintic_b_spline.generateInterpolatedPath(0.01)
 
     # Generate optimization objective function
     P = OptimizationTools.calcPMatrix(all_control_points)
@@ -125,11 +126,33 @@ if __name__ == '__main__':
 
     # Determine equal constrain condition
     A, b = OptimizationTools.calcAbMatrix(all_control_points)
-
     # Solve quadratic optimization problem
     res = solvers.qp(P, q, None, None, A, b)
 
-    print(res['x'])
+    # print(res['x'])
+
+    # Construct optimized control points
+    optimized_y = np.array(res['x'][2:-2]).reshape((1, -1))
+    time_scatter_points = path_scatters[:, 0]
+    optimized_control_points = np.vstack((time_scatter_points, optimized_y)).T
+
+    # Construct optimized quintic B-spline
+    optimized_quintic_B_spline = QuinticBSpline(optimized_control_points)
+    optimized_quintic_B_spline_path = optimized_quintic_B_spline.generateInterpolatedPath(0.01)
+
+    # # Output
+    # print("Initial control points: {}".format(path_scatters))
+    # print("Optimized control points: {}".format(optimized_control_points))
+
+    # Visualization
+    plt.figure(0, (12, 5))
+    plt.title("Quintic B-spline optimization")
+    plt.plot(initial_quintic_b_spline_path[:, 0], initial_quintic_b_spline_path[:, 1], c='r', linewidth=1.0, label='Initial path')
+    plt.scatter(path_scatters[:, 0], path_scatters[:, 1], c='r', s=5.0, label='Initial control points')
+    plt.plot(optimized_quintic_B_spline_path[:, 0], optimized_quintic_B_spline_path[:, 1], c='g', linewidth=1.0, label='Optimized path')
+    plt.scatter(optimized_control_points[:, 0], optimized_control_points[:, 1], c='g', s=5.0, label='Optimized control points')
+    plt.legend()
+    plt.show()
 
 
 
