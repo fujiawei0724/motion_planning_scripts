@@ -11,89 +11,91 @@ This code is used to simplify the optimization objective function, calculate Hes
 import copy
 import numpy as np
 np.set_printoptions(threshold=float('inf'))
-import scipy
+# from scipy.optimize import minimize
+from cvxopt import matrix, solvers
 import matplotlib.pyplot as plt
 from verifyBSplineProjectionPrecision import QuinticBSpline
 
 EPS = 1e-7
 
-class QuinticBSplineOptimizer:
-    def __init__(self, initial_control_points):
-        assert initial_control_points.shape[1] == 2
-        self.initial_control_points_ = copy.deepcopy(initial_control_points)
-        self.segment_num_ = initial_control_points.shape[0] - 1
-
-        """
-        t means trajectory's time dimension,
-        m denotes the coefficients of quintic B-spline,
-        ordinate means the s or l value.
-        """
-        self.t_start_ = initial_control_points[0][1]
-        self.t_end_ = initial_control_points[-1][1]
-        self.m_start_ = 0.0
-        self.m_end_ = self.segment_num_
-
-        # Generate initial quintic B-spline
-        self.initial_quintic_b_spline_ = QuinticBSpline(initial_control_points)
-        self.initial_quintic_interpolated_path_ = self.initial_quintic_b_spline_.generateInterpolatedPath(0.01)
-
-        # Get Hessian matrix
-        self.Hessian_matrix_ = np.array([[1.0 / 10.0, -1.0 / 12.0, -1.0 / 3.0, 1.0 / 2.0, -1.0 / 6.0, -1.0 / 60.0],
+class OptimizationTools:
+    # Initialize Hessian matrix and P matrix for single segment
+    Hessian_matrix = np.array([[1.0 / 10.0, -1.0 / 12.0, -1.0 / 3.0, 1.0 / 2.0, -1.0 / 6.0, -1.0 / 60.0],
                                          [-1.0 / 12.0, 1.0 / 2.0, -5.0 / 6.0, 1.0 / 3.0, 1.0 / 4.0, -1.0 / 6.0],
                                          [-1.0 / 3.0, -5.0 / 6.0, 4.0, -11.0 / 3.0, 1.0 / 3.0, 1.0 / 2.0],
                                          [1.0 / 2.0, 1.0 / 3.0, -11.0 / 3.0, 4.0, -5.0 / 6.0, -1.0 / 3.0],
                                          [-1.0 / 6.0, 1.0 / 4.0, 1.0 / 3.0, -5.0 / 6.0, 1.0 / 2.0, -1.0 / 12.0],
                                          [-1.0 / 60.0, -1.0 / 6.0, 1.0 / 2.0, -1.0 / 3.0, -1.0 / 12.0, 1.0 / 10.0]])
+    single_P_matrix = 0.5 * Hessian_matrix
 
 
-    # Calculate optimization objective function of the whole quintic B-spline
-    def objectiveFunction(self):
-        cost = 0.0
-        # Calculate objective cost for each segment
-        for i in range(0, self.segment_num_):
-            cost += self.calcSegmentObjectiveFunction(i)
-        # print("Objective function cost: {}".format(cost))
-        return cost
+    # Solve P matrix for quadratic optimization
+    @staticmethod
+    def calcPMatrix(all_control_points):
+        points_num = all_control_points.shape[0]
 
-    # Calculate optimization objective function of a given segment
-    def calcSegmentObjectiveFunction(self, segment_index):
-        # Generate segment control points
-        all_control_points = self.initial_quintic_b_spline_.points_
-        assert all_control_points.shape[0] == self.segment_num_ + 5
-        segment_control_points = all_control_points[segment_index:segment_index + 6]
+        # Initialize P matrix
+        P = np.zeros((points_num, points_num))
 
-        # Calculate time span (normalization coefficient)
-        segment_t_start = self.calcStartTime(segment_control_points)
-        segment_t_end = self.calcEndTime(segment_control_points)
-        time_span = segment_t_end - segment_t_start
+        # Calculate segment number
+        segment_num = points_num - 5
 
-        # Determine variables
-        varaibles = segment_control_points[:, 1]
-        varaibles = varaibles.reshape(1, 6)
-        varaibles_T = varaibles.T
+        # Construct item for P matrix
+        for i in range(0, segment_num):
+            segment_control_points = all_control_points[i:i + 6]
 
-        # TODO: need check formulation correctness, probably "time_span ** -5"
-        return np.linalg.multi_dot([varaibles, self.Hessian_matrix_, varaibles_T])[0][0] * (time_span ** (-3))
+            # Calculate time span
+            t_start = OptimizationTools.calcStartTime(segment_control_points)
+            t_end = OptimizationTools.calcEndTime(segment_control_points)
+            time_span = t_end - t_start
+
+            # Construct P matrix
+            P[i:i + 6, i:i + 6] += OptimizationTools.single_P_matrix * (time_span ** (-3))
+
+        return matrix(P)
+
+    # Solve A matrix for quadratic optimization
+    @staticmethod
+    def calcAbMatrix(all_control_points):
+        assert all_control_points.shape[0] > 6
+        points_num = all_control_points.shape[0]
+
+        # Store start point position and end point position
+        start_point_value = all_control_points[2][1]
+        end_point_value = all_control_points[points_num - 3][1]
+
+        # Initialize A matrix
+        A = np.zeros((6, points_num))
+        b = np.zeros((6, ))
+
+        # Added points constrain conditions
+        A[0][0], A[0][2], A[0][4] = 1.0, -2.0, 1.0
+        A[1][1], A[1][2], A[1][3] = 1.0, -2.0, 1.0
+        A[2][points_num - 1], A[2][points_num - 3], A[2][points_num - 5] = 1.0, -2.0, 1.0
+        A[3][points_num - 2], A[3][points_num - 3], A[3][points_num - 4] = 1.0, -2.0, 1.0
+
+        # Start point and end point constrain conditions
+        A[4][2], A[5][points_num - 3] = 1.0, 1.0
+        b[4], b[5] = start_point_value, end_point_value
+
+        return matrix(A), matrix(b)
+
+
+
+
 
 
     # Calculate start time of a specified segment
-    def calcStartTime(self, segment_control_points):
+    @staticmethod
+    def calcStartTime(segment_control_points):
         assert segment_control_points.shape == (6, 2)
         return (1.0 / 120.0) * segment_control_points[0][0] + (26.0 / 120.0) * segment_control_points[1][0] + (33.0 / 60.0) * segment_control_points[2][0] + (13.0 / 60.0) * segment_control_points[3][0] + (1.0 / 120.0) * segment_control_points[4][0]
 
     # Calculate end time of a specified segment
-    def calcEndTime(self, segment_control_points):
+    @staticmethod
+    def calcEndTime(segment_control_points):
         assert segment_control_points.shape == (6, 2)
         return (1.0 / 120.0) * segment_control_points[1][0] + (13.0 / 60.0) * segment_control_points[2][0] + (33.0 / 60.0) * segment_control_points[3][0] + (26.0 / 120.0) * segment_control_points[4][0] + (1.0 / 120.0) * segment_control_points[5][0]
-
-
-
-
-
-    # Optimize process
-    def optimize(self):
-        pass
-
 
 
 if __name__ == '__main__':
@@ -102,12 +104,33 @@ if __name__ == '__main__':
                               [2.0, 6.0],
                               [3.0, 15.0],
                               [4.0, 10.0],
-                              [5.0, 15.0],
-                              [6.0, 8.0],
-                              [7.0, 10.0],
+                              # [5.0, 15.0],
+                              # [6.0, 8.0],
+                              # [7.0, 10.0],
                               [8.0, 12.0],
                               [9.0, 15.0],
                               [10.0, 16.0]])
 
-    quintic_b_spline_optimizier = QuinticBSplineOptimizer(path_scatters)
-    quintic_b_spline_optimizier.objectiveFunction()
+    # Construct all control points
+    quintic_b_spline = QuinticBSpline(path_scatters)
+    all_control_points = quintic_b_spline.points_
+
+    # Generate optimization objective function
+    P = OptimizationTools.calcPMatrix(all_control_points)
+    q = matrix(np.zeros((all_control_points.shape[0], )))
+
+    # Determine unequal constrain conditions
+    # G = matrix(np.zeros((1, all_control_points.shape[0])))
+    # h = matrix(np.zeros((1, )))
+
+    # Determine equal constrain condition
+    A, b = OptimizationTools.calcAbMatrix(all_control_points)
+
+    # Solve quadratic optimization problem
+    res = solvers.qp(P, q, None, None, A, b)
+
+    print(res['x'])
+
+
+
+
