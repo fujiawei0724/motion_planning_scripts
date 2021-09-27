@@ -7,7 +7,7 @@
 # @Software: PyCharm
 
 """
-This code generates b spline trajectory in 3D dimension.
+This code generates quintic B-spline trajectory in 3D dimension.
 """
 
 import numpy as np
@@ -16,7 +16,7 @@ import scipy.interpolate as interpolate
 from mpl_toolkits.mplot3d import Axes3D
 from myBezierSpline import QuinticBSpline
 
-class B_Spline:
+class BSplineTrajectory:
     def __init__(self):
         pass
 
@@ -82,15 +82,14 @@ if __name__ == '__main__':
     trajectory_scatter_points = np.vstack((point_1, point_2, point_3, point_4, point_5, point_6))
 
     # Trajectory generation
-    trajectory_generator = B_Spline()
+    trajectory_generator = BSplineTrajectory()
     trajectory = trajectory_generator.trajectoryGeneration(trajectory_scatter_points)
 
-    trajectory_scatter_points = trajectory_scatter_points.T
     # Visualization
     fig = plt.figure()
     ax_1 = Axes3D(fig)
     ax_1.plot3D(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2], 'gray')
-    ax_1.scatter3D(trajectory_scatter_points[0, :], trajectory_scatter_points[1, :], trajectory_scatter_points[2, :], cmap='Blues')
+    ax_1.scatter3D(trajectory_scatter_points[:, 0], trajectory_scatter_points[:, 1], trajectory_scatter_points[:, 2], cmap='Blues')
     ax_1.set_zlabel('time')
     ax_1.set_ylabel('d')
     ax_1.set_xlabel('s')

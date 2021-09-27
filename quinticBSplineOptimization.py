@@ -50,6 +50,7 @@ class OptimizationTools:
             time_span = t_end - t_start
 
             # Construct P matrix
+            # TODO: check "time_span ** (-3)" or "time_span ** (-5)"
             P[i:i + 6, i:i + 6] += OptimizationTools.single_P_matrix * (time_span ** (-3))
 
         return matrix(P)
@@ -94,7 +95,7 @@ class OptimizationTools:
 
     # Optimization function
     @staticmethod
-    def quinticBSplineOptimization(initial_control_points):
+    def quinticBSplineOptimization(path_scatters):
         # Construct all control points
         initial_quintic_b_spline = QuinticBSpline(path_scatters)
         all_control_points = initial_quintic_b_spline.points_
@@ -126,8 +127,8 @@ if __name__ == '__main__':
     path_scatters = np.array([[0.0, 0.0],
                               [1.0, 5.0],
                               [2.0, 6.0],
-                              [3.0, 15.0],
-                              [4.0, 1000.0],
+                              # [3.0, 15.0],
+                              # [4.0, 10.0],
                               # [5.0, 15.0],
                               # [6.0, 8.0],
                               # [7.0, 10.0],
