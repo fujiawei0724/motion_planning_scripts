@@ -47,25 +47,19 @@ class QuinticBSplineOptimizer:
 
 
     # Calculate optimization objective function of the whole quintic B-spline
-    def calcObjectiveFunction(self):
-        # Firstly, calculate the cut-off points of t and m
-        m_cut_off_points = np.arange(self.m_start_, self.m_end_ + EPS, 1.0)
-        t_cut_off_points = []
-        for sample_m in m_cut_off_points:
-            t_cut_off_points.append(self.initial_quintic_b_spline_.generateScatterPoint(sample_m)[0])
-        t_cut_off_points = np.array(t_cut_off_points)
-
-        # print("m cut-off points: {}".format(m_cut_off_points))
-        # print("t cut-off points: {}".format(t_cut_off_points))
-        # print("m cut-off points: {}".format(np.diff(m_cut_off_points)))
-        # print("t cut-off points: {}".format(np.diff(t_cut_off_points)))
-
-        # Secondly, calculate objective cost for each segment
+    def objectiveFunction(self):
+        cost = 0.0
+        # Calculate objective cost for each segment
+        for i in range(0, self.segment_num_):
+            cost += self.calcSegmentObjectiveFunction(i)
+        # print("Objective function cost: {}".format(cost))
+        return cost
 
     # Calculate optimization objective function of a given segment
     def calcSegmentObjectiveFunction(self, segment_index):
         # Generate segment control points
         all_control_points = self.initial_quintic_b_spline_.points_
+        assert all_control_points.shape[0] == self.segment_num_ + 5
         segment_control_points = all_control_points[segment_index:segment_index + 6]
 
         # Calculate time span (normalization coefficient)
@@ -78,7 +72,8 @@ class QuinticBSplineOptimizer:
         varaibles = varaibles.reshape(1, 6)
         varaibles_T = varaibles.T
 
-        return np.linalg.multi_dot([varaibles, self.Hessian_matrix_, varaibles_T])
+        # TODO: need check formulation correctness, probably "time_span ** -5"
+        return np.linalg.multi_dot([varaibles, self.Hessian_matrix_, varaibles_T])[0][0] * (time_span ** (-3))
 
 
     # Calculate start time of a specified segment
@@ -115,4 +110,4 @@ if __name__ == '__main__':
                               [10.0, 16.0]])
 
     quintic_b_spline_optimizier = QuinticBSplineOptimizer(path_scatters)
-    quintic_b_spline_optimizier.calcObjectiveFunction()
+    quintic_b_spline_optimizier.objectiveFunction()
