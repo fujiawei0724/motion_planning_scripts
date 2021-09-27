@@ -67,9 +67,12 @@ if __name__ == '__main__':
     point_4 = np.array([15.0, 0.8, 3.0])
     point_5 = np.array([22.0, 4.0, 4.0])
     point_6 = np.array([30.0, 1.0, 5.0])
+    point_7 = np.array([35.0, 1.5, 6.0])
+    point_8 = np.array([37.0, 2.5, 7.0])
+    point_9 = np.array([38.0, 3.0, 8.0])
 
     # Construct scatter points
-    initial_trajectory_scatter_points = np.vstack((point_1, point_2, point_3, point_4, point_5, point_6))
+    initial_trajectory_scatter_points = np.vstack((point_1, point_2, point_3, point_4, point_5, point_6, point_7, point_8, point_9))
 
     # Initial trajectory generation
     initial_trajectory_generator = BSplineTrajectory()
