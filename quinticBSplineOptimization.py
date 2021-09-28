@@ -75,9 +75,27 @@ class OptimizationTools:
         A[2][points_num - 1], A[2][points_num - 3], A[2][points_num - 5] = 1.0, -2.0, 1.0
         A[3][points_num - 2], A[3][points_num - 3], A[3][points_num - 4] = 1.0, -2.0, 1.0
 
-        # Start point and end point constrain conditions
+        # Start point and end point position constraint conditions
         A[4][2], A[5][points_num - 3] = 1.0, 1.0
         b[4], b[5] = start_point_value, end_point_value
+
+        """
+        Some problem happen when add the velocity and acceleration constraint condition, maybe the reason is that the 
+        equality constraint conditions are redundant.
+        In cpp, if nlopt does not care the problem, the optimization process will be feasible.
+        """
+        # # Start point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
+        # A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        # b[6] = -5.0
+        # A[7][0], A[7][1], A[7][2], A[7][3], A[7][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        # b[7] = -1.0
+
+        # # End point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
+        # A[8][points_num - 5], A[8][points_num - 4], A[8][points_num - 2], A[8][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        # b[8] = 5.0
+        # A[9][points_num - 5], A[9][points_num - 4], A[9][points_num - 3], A[9][points_num - 2], A[9][points_num - 1] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        # b[9] = 1.0
+
 
         return matrix(A), matrix(b)
 
@@ -110,6 +128,7 @@ class OptimizationTools:
 
         # Determine equal constrain condition
         A, b = OptimizationTools.calcAbMatrix(all_control_points)
+
         # Solve quadratic optimization problem
         res = solvers.qp(P, q, None, None, A, b)
 
