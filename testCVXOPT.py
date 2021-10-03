@@ -5,7 +5,7 @@
 # @Software: PyCharm
 
 """
-This code is used for testing the capability of CVXOPT, which is a optimization library in python.
+This code is used for testing the capability of CVXOPT, which is a optimization library in python. These result are applied to compared with those alculated by CGAL to show their correctness,
 """
 
 from cvxopt import solvers, matrix
@@ -16,15 +16,15 @@ if __name__ == '__main__':
                   [0.5, 4., 0.5],
                   [0., 0.5, 5]]))
     q = matrix(np.zeros(3, ))
-    G = matrix(np.array([[1., 1., 1.],
+    G = matrix(np.array([[-1., -1., -1.],
                          [-1., 2., 0.],
                          [-1., 0., 0.],
                          [0., -1., 0.],
                          [0., 4., 0.]]))
-    h = matrix(np.array([7., 4., 0., 0., 4.]))
+    h = matrix(np.array([-7., 4., 0., 0., 4.]))
 
     res = solvers.qp(P, q, G, h, None, None)
 
-    print(res['x'])
+
 
 

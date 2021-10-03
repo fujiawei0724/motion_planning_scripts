@@ -66,8 +66,8 @@ class OptimizationTools:
         end_point_value = all_control_points[points_num - 3][1]
 
         # Initialize A matrix
-        A = np.zeros((6, points_num))
-        b = np.zeros((6, ))
+        A = np.zeros((8, points_num))
+        b = np.zeros((8, ))
 
         # Added points constrain conditions
         A[0][0], A[0][2], A[0][4] = 1.0, -2.0, 1.0
@@ -77,18 +77,22 @@ class OptimizationTools:
 
         # Start point and end point position constraint conditions
         A[4][2], A[5][points_num - 3] = 1.0, 1.0
-        b[4], b[5] = start_point_value, end_point_value
+        b[4], b[5] = copy.copy(start_point_value), copy.copy(end_point_value)
 
         """
-        Some problem happen when add the velocity and acceleration constraint condition, maybe the reason is that the 
-        equality constraint conditions are redundant.
-        In cpp, if nlopt does not care the problem, the optimization process will be feasible.
+        Some problem happen when add the velocity and acceleration constraint condition, maybe the reason is that the equality constraint conditions are redundant.
+        In cpp, if CGAL does not care the problem, the optimization process will be feasible.
         """
-        # # Start point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
-        # A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        # b[6] = -5.0
-        # A[7][0], A[7][1], A[7][2], A[7][3], A[7][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
-        # b[7] = -1.0
+        """
+        The problem maybe the velocity calculation and the added points' position limit are redundant. 
+        If the quintic B-spline is limited to approximate the start point position and end point position, the acceleration is always 0. That is a problem need to fix. 
+        """
+
+        # Start point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
+        A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[6] = 1.0
+        A[7][0], A[7][1], A[7][2], A[7][3], A[7][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        b[7] = 0.0
 
         # # End point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
         # A[8][points_num - 5], A[8][points_num - 4], A[8][points_num - 2], A[8][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
@@ -149,8 +153,8 @@ if __name__ == '__main__':
                               # [3.0, 15.0],
                               # [4.0, 10.0],
                               # [5.0, 15.0],
-                              # [6.0, 8.0],
-                              # [7.0, 10.0],
+                              [6.0, 8.0],
+                              [7.0, 10.0],
                               [8.0, 12.0],
                               [9.0, 15.0],
                               [10.0, 16.0]])
