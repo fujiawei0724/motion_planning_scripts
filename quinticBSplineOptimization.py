@@ -51,7 +51,7 @@ class OptimizationTools:
 
             # Construct P matrix
             # TODO: check "time_span ** (-3)" or "time_span ** (-5)"
-            P[i:i + 6, i:i + 6] += OptimizationTools.single_P_matrix * (time_span ** (-3))
+            P[i:i + 6, i:i + 6] += OptimizationTools.Hessian_matrix * (time_span ** (-3))
 
         return matrix(P)
 
