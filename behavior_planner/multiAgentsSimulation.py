@@ -19,9 +19,9 @@ if __name__ == '__main__':
     center_lane = common.Lane(common.PathPoint(0.0, 0.0, None), common.PathPoint(100.0, 0.0, None), common.LaneId.CenterLane.value)
     left_lane = common.Lane(common.PathPoint(0.0, 3.0, None), common.PathPoint(100.0, 3.0, None), common.LaneId.LeftLane.value)
     right_lane = common.Lane(common.PathPoint(0.0, -3.0, None), common.PathPoint(100.0, -3.0, None), common.LaneId.RightLane.value)
-    lanes[common.LaneId.CenterLane.value] = center_lane
-    lanes[common.LaneId.LeftLane.value] = left_lane
-    lanes[common.LaneId.RightLane.value] = right_lane
+    lanes[common.LaneId.CenterLane] = center_lane
+    lanes[common.LaneId.LeftLane] = left_lane
+    lanes[common.LaneId.RightLane] = right_lane
 
     # 2. Initialize ego vehicle information
     ego_vehicle_start_position = common.PathPoint(20.0, 0.0, 0.0)
