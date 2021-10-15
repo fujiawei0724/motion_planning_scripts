@@ -11,6 +11,7 @@ This code contains the components for the behavior planner core.
 import numpy as np
 import random
 import copy
+import math
 from enum import Enum, unique
 
 
@@ -28,6 +29,24 @@ class LaneId(Enum):
     CenterLane = 0
     LeftLane = 1
     RightLane = 2
+
+class Config:
+    look_ahead_min_distance = 3.0
+    look_ahead_max_distance = 50.0
+    steer_control_gain = 1.5
+    lateral_velocity_threshold = 0.35
+    lateral_distance_threshold = 0.4
+
+class Tools:
+    @staticmethod
+    def normalizeAngle(theta):
+        processed_theta = theta
+        while processed_theta > math.pi:
+            processed_theta -= 2.0 * math.pi
+        while processed_theta <= -math.pi:
+            processed_theta += 2.0 * math.pi
+        return processed_theta
+
 
 
 # Path point class
@@ -53,9 +72,9 @@ class Lane:
         lane_theta = np.arctan2(end_point.y_ - start_point.y_, end_point.x_ - start_point.x_)
         lane_path_points = []
         for sample in samples:
-            lane_path_points.append(
-                PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
+            lane_path_points.append(PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
         self.path_points_ = lane_path_points
+        self.path_points_margin_ = lane_path_points[0].calculateDistance(lane_path_points[1])
 
     # Calculate the distance from a position to lane
     def calculatePositionToLaneDistance(self, position):
@@ -76,6 +95,20 @@ class Lane:
                 index = i
         assert index != -1
         return index
+
+    # Get target point from a specified point and distance
+    def calculateTargetDistancePoint(self, position, distance):
+        # Calculate current index
+        cur_position_index = self.calculateNearestIndexInLane(position)
+
+        target_position_index = cur_position_index
+        for lane_point_index in range(cur_position_index, len(self.path_points_)):
+            if self.path_points_[cur_position_index].calculateDistance(self.path_points_[lane_point_index]) >= distance:
+                target_position_index = lane_point_index
+                break
+        return target_position_index
+
+
 
 
 # Lane set
@@ -110,8 +143,6 @@ class LaneServer:
     # Calculate potential behavior and reference lane for surround agents
     def calculateSurroundVehicleBehavior(self, vehicle):
         assert vehicle.id_ != 0
-        lateral_velocity_threshold = 0.35
-        lateral_distance_threshold = 0.4
 
         # Find the nearest lane
         nearest_lane = self.findNearestLane(vehicle.position_)
@@ -121,13 +152,13 @@ class LaneServer:
         lateral_distance = nearest_lane.calculatePositionToLaneDistance(vehicle.position_)
 
         # Delete error agent and behavior
-        if nearest_lane.id_ == LaneId.LeftLane and lateral_velocity >= lateral_velocity_threshold or nearest_lane.id_ == LaneId.RightLane and lateral_velocity <= -lateral_velocity_threshold:
+        if nearest_lane.id_ == LaneId.LeftLane and lateral_velocity >= Config.lateral_velocity_threshold or nearest_lane.id_ == LaneId.RightLane and lateral_velocity <= -Config.lateral_velocity_threshold:
             return None
 
         # Generate semantic vehicles
-        if lateral_distance >= lateral_distance_threshold and lateral_velocity >= lateral_velocity_threshold:
+        if lateral_distance >= Config.lateral_distance_threshold and lateral_velocity >= Config.lateral_velocity_threshold:
             return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.LeftLane])
-        elif lateral_distance <= -lateral_distance_threshold and lateral_velocity <= -lateral_velocity_threshold:
+        elif lateral_distance <= -Config.lateral_distance_threshold and lateral_velocity <= -Config.lateral_velocity_threshold:
             return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.RightLane])
         else:
             return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, self.lanes_[LaneId.CenterLane])
@@ -181,6 +212,10 @@ class LaneServer:
     def getLeadingVehicle(self, cur_semantic_vehicle):
         reference_lane = cur_semantic_vehicle.reference_lane_
 
+        # Initialize
+        min_diff = float('inf')
+        leading_vehicle = None
+
         # Get ego vehicle index in reference
         ego_vehicle_index = reference_lane.calculateNearestIndexInLane(cur_semantic_vehicle.vehicle_.position_)
 
@@ -189,8 +224,15 @@ class LaneServer:
             if semantic_vehicle_id == cur_semantic_vehicle.vehicle_.id_:
                 continue
 
+            # Determine identical lane
+            if other_semantic_vehicle.nearest_lane_.id_ == reference_lane.id_:
+                other_vehicle_lane_index = other_semantic_vehicle.nearest_lane_.calculateNearestIndexInLane(other_semantic_vehicle.vehicle_.position_)
+                if other_vehicle_lane_index > ego_vehicle_index:
+                    if other_vehicle_lane_index - ego_vehicle_index < min_diff:
+                        min_diff = other_vehicle_lane_index - ego_vehicle_index
+                        leading_vehicle = other_semantic_vehicle
 
-
+        return leading_vehicle
 
 # Agent vehicle generator (without ego vehicle)
 class AgentGenerator:
@@ -221,6 +263,9 @@ class AgentGenerator:
 
 # Forward simulation
 class ForwardExtender:
+
+
+
     def __init__(self, ego_vehicle, potential_behavior, surround_agents, lanes):
         # Information cache
         self.ego_vehicle_ = copy.deepcopy(ego_vehicle)
@@ -236,7 +281,40 @@ class ForwardExtender:
         pass
 
     # Forward once from current state
-    def ForwardOnce(self):
+    def forwardOnce(self):
+        pass
+
+    # Calculate steer
+    def calculateSteer(self, semantic_vehicle):
+        # Determine look ahead distance in reference lane
+        look_ahead_distance = min(max(Config.look_ahead_min_distance, semantic_vehicle.vehicle_.velocity_ * Config.steer_control_gain), Config.look_ahead_max_distance)
+
+        # Calculate nearest path point in reference lane
+        nearest_path_point = semantic_vehicle.reference_lane_.path_points_[semantic_vehicle.reference_lane_.calculateNearestIndexInLane(semantic_vehicle.vehicle_.position_)]
+
+        # Calculate target path point in reference lane
+        target_path_point_in_reference_lane = semantic_vehicle.reference_lane_.calculateTargetDistancePoint(nearest_path_point, look_ahead_distance)
+
+        # Calculate look ahead distance in world frame
+        look_ahead_distance_world = target_path_point_in_reference_lane.calculateDistance(semantic_vehicle.vehicle_.position_)
+
+        # Calculate target angle and diff angle
+        target_angle = np.arctan2(target_path_point_in_reference_lane.y_ - semantic_vehicle.vehicle_.position_.y_, target_path_point_in_reference_lane.x_ - semantic_vehicle.vehicle_.position_.x_)
+        diff_angle = Tools.normalizeAngle(target_angle - semantic_vehicle.vehicle_.position_.theta_)
+
+
+
+
+
+
+
+
+    # Calculate velocity
+    def calculateVelocity(self):
+        pass
+
+    # Calculate desired state
+    def calculateDesiredState(self):
         pass
 
 
@@ -286,7 +364,7 @@ class SemanticVehicle:
         self.nearest_lane_ = nearest_lane
         self.reference_lane_ = reference_lane
 
-    # Get the
+
 
 
 
