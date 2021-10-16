@@ -12,6 +12,7 @@ import numpy as np
 import random
 import copy
 import math
+from collections import namedtuple
 from enum import Enum, unique
 
 
@@ -31,11 +32,15 @@ class LaneId(Enum):
     RightLane = 2
 
 class Config:
+    BigEPS = 1e-1
     look_ahead_min_distance = 3.0
     look_ahead_max_distance = 50.0
     steer_control_gain = 1.5
     lateral_velocity_threshold = 0.35
     lateral_distance_threshold = 0.4
+    wheelbase_length = 2.8
+    
+
 
 class Tools:
     @staticmethod
@@ -46,6 +51,19 @@ class Tools:
         while processed_theta <= -math.pi:
             processed_theta += 2.0 * math.pi
         return processed_theta
+
+    @staticmethod
+    def calculateSteer(wheelbase_length, angle_diff, look_ahead_distance):
+        return np.arctan2(2.0 * wheelbase_length * np.sin(angle_diff), look_ahead_distance)
+
+    @staticmethod
+    def truncate(val_in, lower, upper):
+        if lower > upper:
+            assert False
+        res = val_in
+        res = max(res, lower)
+        res = min(res, upper)
+        return res
 
 
 
@@ -84,7 +102,7 @@ class Lane:
             min_distance = min(min_distance, cur_dis)
         return min_distance
 
-    # Calculate the nearest path point index in lane from a specified position
+    # Calculate the nearest path point index in a lane from a specified position
     def calculateNearestIndexInLane(self, position):
         min_distance = float('inf')
         index = -1
@@ -95,6 +113,10 @@ class Lane:
                 index = i
         assert index != -1
         return index
+
+    # Calculate the nearest path point in a lane from a specified position
+    def calculateNearestPointInLane(self, position):
+        return self.path_points_[self.calculateNearestIndexInLane(position)]
 
     # Get target point from a specified point and distance
     def calculateTargetDistancePoint(self, position, distance):
@@ -266,12 +288,12 @@ class ForwardExtender:
 
 
 
-    def __init__(self, ego_vehicle, potential_behavior, surround_agents, lanes):
+    def __init__(self, ego_vehicle, potential_behavior, surround_agents, lane_server):
         # Information cache
         self.ego_vehicle_ = copy.deepcopy(ego_vehicle)
         self.potential_behavior_ = copy.deepcopy(potential_behavior)
         self.surround_agents_ = copy.deepcopy(surround_agents)
-        self.lanes_ = copy.deepcopy(lanes)
+        self.lane_server_ = copy.deepcopy(lane_server)
 
     # Forward extend with interaction
     def multiAgentForward(self):
@@ -302,6 +324,41 @@ class ForwardExtender:
         target_angle = np.arctan2(target_path_point_in_reference_lane.y_ - semantic_vehicle.vehicle_.position_.y_, target_path_point_in_reference_lane.x_ - semantic_vehicle.vehicle_.position_.x_)
         diff_angle = Tools.normalizeAngle(target_angle - semantic_vehicle.vehicle_.position_.theta_)
 
+        # Calculate target steer
+        target_steer = Tools.calculateSteer(Config.wheelbase_length, diff_angle, look_ahead_distance_world)
+
+        return target_steer
+
+    # Calculate velocity
+    def calculateVelocity(self, ego_semantic_vehicle, dt):
+        # Calculate leading vehicle
+        leading_semantic_vehicle = self.lane_server_.getLeadingVehicle(ego_semantic_vehicle)
+
+        # Judge leading vehicle state
+        if leading_semantic_vehicle == None:
+            # Don't exist leading vehicle, using virtual leading vehicle
+            virtual_leading_vehicle_distance = 100.0 + 100.0 * ego_semantic_vehicle.vehicle_.velocity_
+            target_velocity = IDM.calculateVelocity(0.0, virtual_leading_vehicle_distance, ego_semantic_vehicle.vehicle_.velocity_, ego_semantic_vehicle.vehicle_.velocity_, dt)
+        else:
+            # With leading vehicle
+            # Calculate ego vehicle and leading vehicle's nearest position in corresponding lane respectively
+            assert ego_semantic_vehicle.reference_lane_ == leading_semantic_vehicle.nearest_lane_
+            corresponding_lane_ = ego_semantic_vehicle.reference_lane_
+            ego_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(ego_semantic_vehicle.vehicle_.position_)
+            leading_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(leading_semantic_vehicle.vehicle_.position_)
+
+            # Calculate the distance between ego vehicle and ego vehicle
+            ego_leading_vehicles_diatance = ego_vehicle_position_in_corresponding_lane.calculateDistance(leading_vehicle_position_in_corresponding_lane)
+            target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_diatance, ego_semantic_vehicle.vehicle_.velocity_, leading_semantic_vehicle.vehicle_.velocity_, dt)
+
+        return target_velocity
+
+    # Calculate desired state
+    def calculateDesiredDistance(self):
+        pass
+
+        
+
 
 
 
@@ -327,13 +384,126 @@ class PolicyEvaluater:
 
 # IDM model
 class IDM:
-    @staticmethod
-    def calculateVelocity():
-        pass
 
+    # IDM config
+    desired_velocity = 0.0
+    vehicle_length = 5.0
+    minimum_spacing = 2.0
+    desired_headaway_time = 1.0
+    acceleration = 2.0
+    comfortable_braking_deceleration = 3.0
+    hard_braking_deceleration = 5.0
+    exponent = 4
+
+    # Calculate velocity using IDM model with linear function
     @staticmethod
-    def calculateAcceleration():
-        pass
+    def calculateVelocity(cur_s, leading_s, cur_velocity, leading_velocity, dt):
+
+        # Linear predict function
+        def linearPredict(dt):
+            # Calculate responding acceleration
+            acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity)
+            acc = max(acc, -min(IDM.hard_braking_deceleration, cur_velocity / dt))
+            next_cur_s = cur_s + cur_velocity * dt + 0.5 * acc * dt * dt
+            next_leading_s = leading_s + leading_velocity * dt
+            next_cur_velocity = cur_velocity + acc * dt
+            next_leading_velocity = leading_velocity
+            return next_cur_s, next_leading_s, next_cur_velocity, next_leading_velocity
+
+        _, _, target_velocity, _ = linearPredict(dt)
+
+        return target_velocity
+
+    # Calculate acceleration using IDM model
+    @staticmethod
+    def calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity):
+        # Calculate parameters
+        a_free = IDM.acceleration * (1 - pow(cur_velocity / IDM.desired_velocity, IDM.exponent)) if cur_velocity <= IDM.desired_velocity else -IDM.comfortable_braking_deceleration * (1 - pow(IDM.desired_velocity / cur_velocity, IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
+        s_alpha = max(0.0, leading_s - cur_s - IDM.vehicle_length)
+        z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (cur_velocity - leading_velocity) / (2.0 * np.sqrt(IDM.acceleration * IDM.comfortable_braking_deceleration)))) / s_alpha
+
+        # Calculate output acceleration
+        if cur_velocity <= IDM.desired_velocity:
+            a_out = IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free * (1 - pow(z, 2.0 * IDM.acceleration / a_free))
+        else:
+            a_out = a_free + IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free
+        a_out = max(min(IDM.acceleration, a_out), -IDM.hard_braking_deceleration)
+
+        return a_out
+
+# Ideal steer model
+class IdealSteerModel:
+
+    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc, max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
+        self.wheelbase_len_ = wheelbase_len
+        self.max_lon_acc_ = max_lon_acc
+        self.max_lon_dec_ = max_lon_dec
+        self.max_lon_acc_jerk_ = max_lon_acc_jerk
+        self.max_lon_dec_jerk = max_lon_dec_jerk
+        self.max_lat_acc_ = max_lat_acc
+        self.max_lat_jerk_ = max_lat_jerk
+        self.max_steering_angle_ = max_steering_angle
+        self.max_steer_rate_ = max_steer_rate
+        self.max_curvature_ = max_curvature
+
+        # Initialize shell
+        self.control_ = []
+        self.state_ = None
+        # Internal_state[0] means x position, internal_state[1] means y position, internal_state[2] means angle, internal_state[3] means velocity, internal_state[4] means steer
+        self.internal_state_ = None
+        self.desired_lon_acc_ = 0.0
+        self.desired_lat_acc_ = 0.0
+        self.desired_steer_rate_ = 0.0
+
+    # Set control information, control[0] means steer, control[1] means velocity
+    def setControl(self, control):
+        self.control_ = control
+
+    # Set state information, use vehicle class reprsent vehicle state
+    def setState(self, vehicle):
+        self.state_ = vehicle
+
+    # Truncate control
+    def truncateControl(self, dt):
+        self.desired_lon_acc_ = self.control_[0] - self.state_.velocity / dt
+        desired_lon_jerk = (self.desired_lon_acc_ - self.state_.acceleration_) / dt
+        desired_lon_jerk = Tools.truncate(desired_lon_jerk, -self.max_lon_dec_jerk, self.max_lon_acc_jerk_)
+        self.desired_lon_acc_ = desired_lon_jerk * dt + self.state_.acceleration_
+        self.desired_lon_acc_ = Tools.truncate(self.desired_lon_acc_, -self.max_lon_dec_, self.max_lon_acc_)
+        self.control_[1] = max(self.state_.velocity_ + self.desired_lon_acc_ * dt, 0.0)
+        self.desired_lat_acc_ = pow(self.control_[1], 2) * (np.tan(self.control_[0]) / self.wheelbase_len_)
+        lat_acc_ori = pow(self.state_.velocity_, 2.0) * self.state_.curvature_
+        lat_jerk_desired = (self.desired_lat_acc_ - lat_acc_ori) / dt
+        lat_jerk_desired = Tools.truncate(lat_jerk_desired, -self.max_lat_jerk_, self.max_lat_jerk_)
+        desired_lat_acc_ = lat_jerk_desired * dt + lat_acc_ori
+        desired_lat_acc_ = Tools.truncate(desired_lat_acc_, -self.max_lat_acc_, self.max_lat_acc_)
+        self.control_[0] = np.atan(desired_lat_acc_ * self.wheelbase_len_ / max(pow(self.control_[1], 2.0), 0.1 * Config.BigEPS))
+        self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_) / dt
+        self.desired_steer_rate_ = Tools.truncate(self.desired_steer_rate_, -self.max_steer_rate_, self.max_steer_rate_)
+        self.control_[0] = Tools.normalizeAngle(self.state_.steer_ + self.desired_steer_rate_ * dt)
+
+    # Forward once
+    def step(self, dt):
+        self.state_.steer_ = np.atan(self.state_.curvature_ * self.wheelbase_len_)
+        self.updateInternalState()
+        self.control_[1] = max(0.0, self.control_[1])
+        self.control_[0] = Tools.truncate(self.control_[0], -self.max_steering_angle_, self.max_steering_angle_)
+        self.truncateControl(dt)
+        self.desired_lon_acc_ = (self.control_[1] - self.state_.velocity_) / dt
+        self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_)
+
+        # Linear predict function
+        def linearPredict(internal_state):
+            
+
+
+    # Update internal state
+    def updateInternalState(self):
+        self.internal_state_[0] = self.state_.position_.x_
+        self.internal_state_[1] = self.state_.position_.y_
+        self.internal_state_[2] = self.state_.position_.theta_
+        self.internal_state_[3] = self.state_.velocity_
+        self.internal_state_[4] = self.state_.steer_
 
 
 # Rectangle class, denotes the area occupied by the vehicle
@@ -353,6 +523,9 @@ class Vehicle:
         self.velocity_ = velocity
         self.acceleration_ = acceleration
         self.time_stamp_ = time_stamp
+        # TODO: add curvature and steer information
+        self.curvature_ = 0.0
+        self.steer_ = 0.0
 
     def getRectangle(self):
         pass
