@@ -31,6 +31,7 @@ class LaneId(Enum):
     LeftLane = 1
     RightLane = 2
 
+
 class Config:
     BigEPS = 1e-1
     look_ahead_min_distance = 3.0
@@ -39,7 +40,16 @@ class Config:
     lateral_velocity_threshold = 0.35
     lateral_distance_threshold = 0.4
     wheelbase_length = 2.8
-    
+
+    # Control parameters
+    max_lon_acc_jerk = 5.0
+    max_lon_brake_jerk = 5.0
+    max_lat_acceleration_abs = 1.5
+    max_lat_jerk_abs = 3.0
+    max_steer_angle_abs = 45.0 / 180.0 * math.pi
+    max_steer_rate = 0.39
+    max_curvature_abs = 0.33
+
 
 
 class Tools:
@@ -66,7 +76,6 @@ class Tools:
         return res
 
 
-
 # Path point class
 class PathPoint:
     def __init__(self, x, y, theta):
@@ -90,7 +99,8 @@ class Lane:
         lane_theta = np.arctan2(end_point.y_ - start_point.y_, end_point.x_ - start_point.x_)
         lane_path_points = []
         for sample in samples:
-            lane_path_points.append(PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
+            lane_path_points.append(
+                PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
         self.path_points_ = lane_path_points
         self.path_points_margin_ = lane_path_points[0].calculateDistance(lane_path_points[1])
 
@@ -131,8 +141,6 @@ class Lane:
         return target_position_index
 
 
-
-
 # Lane set
 class LaneServer:
     def __init__(self, lanes, vehicles):
@@ -150,7 +158,6 @@ class LaneServer:
             else:
                 semantic_vehicle = self.calculateEgoVehicleBehavior(vehicle)
                 self.semantic_vehicles_[semantic_vehicle.vehicle_.id_] = semantic_vehicle
-
 
     # Find the nearest lane from a postion
     def findNearestLane(self, cur_position):
@@ -181,7 +188,8 @@ class LaneServer:
         if lateral_distance >= Config.lateral_distance_threshold and lateral_velocity >= Config.lateral_velocity_threshold:
             return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.LeftLane])
         elif lateral_distance <= -Config.lateral_distance_threshold and lateral_velocity <= -Config.lateral_velocity_threshold:
-            return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.RightLane])
+            return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane,
+                                   self.lanes_[LaneId.RightLane])
         else:
             return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, self.lanes_[LaneId.CenterLane])
 
@@ -193,9 +201,11 @@ class LaneServer:
         nearest_lane = self.findNearestLane(vehicle.position_)
 
         if nearest_lane.id_ == LaneId.CenterLane:
-            return SemanticVehicle(vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft, LateralBehavior.LaneChangeRight}, nearest_lane)
+            return SemanticVehicle(vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft,
+                                             LateralBehavior.LaneChangeRight}, nearest_lane)
         elif nearest_lane.id_ == LaneId.LeftLane:
-            return SemanticVehicle(Vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeRight}, nearest_lane)
+            return SemanticVehicle(Vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeRight},
+                                   nearest_lane)
         elif nearest_lane.id_ == LaneId.RightLane:
             return SemanticVehicle(Vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft}, nearest_lane)
 
@@ -248,13 +258,15 @@ class LaneServer:
 
             # Determine identical lane
             if other_semantic_vehicle.nearest_lane_.id_ == reference_lane.id_:
-                other_vehicle_lane_index = other_semantic_vehicle.nearest_lane_.calculateNearestIndexInLane(other_semantic_vehicle.vehicle_.position_)
+                other_vehicle_lane_index = other_semantic_vehicle.nearest_lane_.calculateNearestIndexInLane(
+                    other_semantic_vehicle.vehicle_.position_)
                 if other_vehicle_lane_index > ego_vehicle_index:
                     if other_vehicle_lane_index - ego_vehicle_index < min_diff:
                         min_diff = other_vehicle_lane_index - ego_vehicle_index
                         leading_vehicle = other_semantic_vehicle
 
         return leading_vehicle
+
 
 # Agent vehicle generator (without ego vehicle)
 class AgentGenerator:
@@ -271,7 +283,8 @@ class AgentGenerator:
         y_position = random.uniform(-3.5, 3.5)
         theta = random.uniform(-0.2, 0.2)
         agent_position = PathPoint(x_position, y_position, theta)
-        ego_vehicle = Vehicle(self.index_, agent_position, agent_length, agent_width, agent_velocity, agent_acceleration)
+        ego_vehicle = Vehicle(self.index_, agent_position, agent_length, agent_width, agent_velocity,
+                              agent_acceleration)
         self.index_ += 1
         return ego_vehicle
 
@@ -286,8 +299,6 @@ class AgentGenerator:
 # Forward simulation
 class ForwardExtender:
 
-
-
     def __init__(self, ego_vehicle, potential_behavior, surround_agents, lane_server):
         # Information cache
         self.ego_vehicle_ = copy.deepcopy(ego_vehicle)
@@ -298,6 +309,7 @@ class ForwardExtender:
     # Forward extend with interaction
     def multiAgentForward(self):
         pass
+
     # Forward extend without interaction
     def openLoopForward(self):
         pass
@@ -309,19 +321,25 @@ class ForwardExtender:
     # Calculate steer
     def calculateSteer(self, semantic_vehicle):
         # Determine look ahead distance in reference lane
-        look_ahead_distance = min(max(Config.look_ahead_min_distance, semantic_vehicle.vehicle_.velocity_ * Config.steer_control_gain), Config.look_ahead_max_distance)
+        look_ahead_distance = min(
+            max(Config.look_ahead_min_distance, semantic_vehicle.vehicle_.velocity_ * Config.steer_control_gain),
+            Config.look_ahead_max_distance)
 
         # Calculate nearest path point in reference lane
-        nearest_path_point = semantic_vehicle.reference_lane_.path_points_[semantic_vehicle.reference_lane_.calculateNearestIndexInLane(semantic_vehicle.vehicle_.position_)]
+        nearest_path_point = semantic_vehicle.reference_lane_.path_points_[
+            semantic_vehicle.reference_lane_.calculateNearestIndexInLane(semantic_vehicle.vehicle_.position_)]
 
         # Calculate target path point in reference lane
-        target_path_point_in_reference_lane = semantic_vehicle.reference_lane_.calculateTargetDistancePoint(nearest_path_point, look_ahead_distance)
+        target_path_point_in_reference_lane = semantic_vehicle.reference_lane_.calculateTargetDistancePoint(
+            nearest_path_point, look_ahead_distance)
 
         # Calculate look ahead distance in world frame
-        look_ahead_distance_world = target_path_point_in_reference_lane.calculateDistance(semantic_vehicle.vehicle_.position_)
+        look_ahead_distance_world = target_path_point_in_reference_lane.calculateDistance(
+            semantic_vehicle.vehicle_.position_)
 
         # Calculate target angle and diff angle
-        target_angle = np.arctan2(target_path_point_in_reference_lane.y_ - semantic_vehicle.vehicle_.position_.y_, target_path_point_in_reference_lane.x_ - semantic_vehicle.vehicle_.position_.x_)
+        target_angle = np.arctan2(target_path_point_in_reference_lane.y_ - semantic_vehicle.vehicle_.position_.y_,
+                                  target_path_point_in_reference_lane.x_ - semantic_vehicle.vehicle_.position_.x_)
         diff_angle = Tools.normalizeAngle(target_angle - semantic_vehicle.vehicle_.position_.theta_)
 
         # Calculate target steer
@@ -335,21 +353,28 @@ class ForwardExtender:
         leading_semantic_vehicle = self.lane_server_.getLeadingVehicle(ego_semantic_vehicle)
 
         # Judge leading vehicle state
-        if leading_semantic_vehicle == None:
+        if leading_semantic_vehicle is None:
             # Don't exist leading vehicle, using virtual leading vehicle
             virtual_leading_vehicle_distance = 100.0 + 100.0 * ego_semantic_vehicle.vehicle_.velocity_
-            target_velocity = IDM.calculateVelocity(0.0, virtual_leading_vehicle_distance, ego_semantic_vehicle.vehicle_.velocity_, ego_semantic_vehicle.vehicle_.velocity_, dt)
+            target_velocity = IDM.calculateVelocity(0.0, virtual_leading_vehicle_distance,
+                                                    ego_semantic_vehicle.vehicle_.velocity_,
+                                                    ego_semantic_vehicle.vehicle_.velocity_, dt)
         else:
             # With leading vehicle
             # Calculate ego vehicle and leading vehicle's nearest position in corresponding lane respectively
             assert ego_semantic_vehicle.reference_lane_ == leading_semantic_vehicle.nearest_lane_
             corresponding_lane_ = ego_semantic_vehicle.reference_lane_
-            ego_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(ego_semantic_vehicle.vehicle_.position_)
-            leading_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(leading_semantic_vehicle.vehicle_.position_)
+            ego_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(
+                ego_semantic_vehicle.vehicle_.position_)
+            leading_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(
+                leading_semantic_vehicle.vehicle_.position_)
 
             # Calculate the distance between ego vehicle and ego vehicle
-            ego_leading_vehicles_diatance = ego_vehicle_position_in_corresponding_lane.calculateDistance(leading_vehicle_position_in_corresponding_lane)
-            target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_diatance, ego_semantic_vehicle.vehicle_.velocity_, leading_semantic_vehicle.vehicle_.velocity_, dt)
+            ego_leading_vehicles_diatance = ego_vehicle_position_in_corresponding_lane.calculateDistance(
+                leading_vehicle_position_in_corresponding_lane)
+            target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_diatance,
+                                                    ego_semantic_vehicle.vehicle_.velocity_,
+                                                    leading_semantic_vehicle.vehicle_.velocity_, dt)
 
         return target_velocity
 
@@ -357,22 +382,24 @@ class ForwardExtender:
     def calculateDesiredDistance(self):
         pass
 
-        
-
-
-
-
-
-
-
-
-    # Calculate velocity
-    def calculateVelocity(self):
-        pass
-
     # Calculate desired state
-    def calculateDesiredState(self):
-        pass
+    def calculateDesiredState(self, semantic_vehicle, steer, velocity, dt):
+
+        # Load parameters for ideal steer model
+        # Wheelbase len need to fix, for different vehicles, their wheelbase length are different
+        ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration,
+                                            Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
+        ideal_steer_model.setState(semantic_vehicle.vehicle_)
+        ideal_steer_model.setControl([steer, velocity])
+        ideal_steer_model.step(dt)
+
+        # Calculate predicted vehicle state (the state of a vehicle belongs to vehicle class)
+        predicted_state = ideal_steer_model.state_
+        predicted_state.time_stamp_ = semantic_vehicle.vehicle_.time_stamp_ + dt
+
+        return predicted_state
+
+
 
 
 
@@ -384,7 +411,6 @@ class PolicyEvaluater:
 
 # IDM model
 class IDM:
-
     # IDM config
     desired_velocity = 0.0
     vehicle_length = 5.0
@@ -418,23 +444,31 @@ class IDM:
     @staticmethod
     def calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity):
         # Calculate parameters
-        a_free = IDM.acceleration * (1 - pow(cur_velocity / IDM.desired_velocity, IDM.exponent)) if cur_velocity <= IDM.desired_velocity else -IDM.comfortable_braking_deceleration * (1 - pow(IDM.desired_velocity / cur_velocity, IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
+        a_free = IDM.acceleration * (1 - pow(cur_velocity / IDM.desired_velocity,
+                                             IDM.exponent)) if cur_velocity <= IDM.desired_velocity else -IDM.comfortable_braking_deceleration * (
+                    1 - pow(IDM.desired_velocity / cur_velocity,
+                            IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
         s_alpha = max(0.0, leading_s - cur_s - IDM.vehicle_length)
-        z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (cur_velocity - leading_velocity) / (2.0 * np.sqrt(IDM.acceleration * IDM.comfortable_braking_deceleration)))) / s_alpha
+        z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (
+                    cur_velocity - leading_velocity) / (2.0 * np.sqrt(
+            IDM.acceleration * IDM.comfortable_braking_deceleration)))) / s_alpha
 
         # Calculate output acceleration
         if cur_velocity <= IDM.desired_velocity:
-            a_out = IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free * (1 - pow(z, 2.0 * IDM.acceleration / a_free))
+            a_out = IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free * (
+                        1 - pow(z, 2.0 * IDM.acceleration / a_free))
         else:
             a_out = a_free + IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free
         a_out = max(min(IDM.acceleration, a_out), -IDM.hard_braking_deceleration)
 
         return a_out
 
+
 # Ideal steer model
 class IdealSteerModel:
 
-    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc, max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
+    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc,
+                 max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
         self.wheelbase_len_ = wheelbase_len
         self.max_lon_acc_ = max_lon_acc
         self.max_lon_dec_ = max_lon_dec
@@ -477,7 +511,8 @@ class IdealSteerModel:
         lat_jerk_desired = Tools.truncate(lat_jerk_desired, -self.max_lat_jerk_, self.max_lat_jerk_)
         desired_lat_acc_ = lat_jerk_desired * dt + lat_acc_ori
         desired_lat_acc_ = Tools.truncate(desired_lat_acc_, -self.max_lat_acc_, self.max_lat_acc_)
-        self.control_[0] = np.atan(desired_lat_acc_ * self.wheelbase_len_ / max(pow(self.control_[1], 2.0), 0.1 * Config.BigEPS))
+        self.control_[0] = np.atan(
+            desired_lat_acc_ * self.wheelbase_len_ / max(pow(self.control_[1], 2.0), 0.1 * Config.BigEPS))
         self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_) / dt
         self.desired_steer_rate_ = Tools.truncate(self.desired_steer_rate_, -self.max_steer_rate_, self.max_steer_rate_)
         self.control_[0] = Tools.normalizeAngle(self.state_.steer_ + self.desired_steer_rate_ * dt)
@@ -493,9 +528,27 @@ class IdealSteerModel:
         self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_)
 
         # Linear predict function
-        def linearPredict(internal_state):
-            
+        # Probably need to fix bug
+        def linearPredict(internal_state, dt):
+            predict_state = [0.0 for _ in range(5)]
+            predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
+            predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
+            predict_state[2] = np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
+            predict_state[3] = internal_state[3] + dt * self.desired_lon_acc_
+            predict_state[4] = internal_state[4] + dt * self.desired_steer_rate_
+            return predict_state
 
+        # Generate predict state
+        predict_state = linearPredict(self.internal_state_, dt)
+        self.state_.position_.x_ = predict_state[0]
+        self.state_.position_.y_ = predict_state[1]
+        self.state_.position_.theta_ = Tools.normalizeAngle(predict_state[2])
+        self.state_.velocity_ = predict_state[3]
+        self.state_.steer_ = Tools.normalizeAngle(predict_state[4])
+        self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
+        self.state_.acceleration_ = self.desired_lon_acc_
+
+        self.updateInternalState()
 
     # Update internal state
     def updateInternalState(self):
@@ -530,17 +583,13 @@ class Vehicle:
     def getRectangle(self):
         pass
 
+
 class SemanticVehicle:
     def __init__(self, vehicle, potential_behaviors, nearest_lane, reference_lane=None):
         self.vehicle_ = vehicle
         self.potential_behaviors_ = potential_behaviors
         self.nearest_lane_ = nearest_lane
         self.reference_lane_ = reference_lane
-
-
-
-
-
 
 
 # Trajectory class, includes
@@ -551,12 +600,3 @@ class Trajectory:
 
 if __name__ == '__main__':
     pass
-
-
-
-
-
-
-
-
-
