@@ -390,12 +390,6 @@ class ForwardExtender:
 
         return ego_trajectory, surround_trajectories
 
-
-
-
-
-
-
     # Forward extend without interaction among vehicles
     def openLoopForward(self):
         pass
@@ -505,8 +499,48 @@ class ForwardExtender:
 # Policy evaluate
 class PolicyEvaluater:
     def __init__(self):
+        # Initialize shell
+        self.ego_potential_behavior_ = None
+        self.ego_trajectory_ = None
+        self.surround_trajectories_ = None
+
+    # Load ego trajectory and surround trajectories
+    def loadData(self, ego_potential_behavior, ego_trajectory, surround_trajectories):
+        self.ego_potential_behavior_ = ego_potential_behavior
+        self.ego_trajectory_ = ego_trajectory
+        self.surround_trajectories_ = surround_trajectories
+
+    # Accumulate all the components of cost function
+    def calculateCost(self):
         pass
 
+    # Efficiency cost
+    def calculateEfficiencyCost(self):
+        # Get the last state of ego vehicle
+        ego_vehicle_last_state = self.ego_trajectory_
+        last_velocity = ego_vehicle_last_state.velocity_
+        return 1.0 / last_velocity
+
+
+    # Safety cost
+    def calculateSafetyCost(self):
+        # Initialize
+        safety_cost = 0.0
+
+        # Traverse trajectory
+        ego_vehicle_tra = self.ego_trajectory_
+        for sur_vehicle_tra in self.surround_trajectories_:
+            assert len(ego_vehicle_tra) == len(sur_vehicle_tra)
+            for time_index in range(0, len(ego_vehicle_tra)):
+                assert ego_vehicle_tra[time_index].time_stamp_ == sur_vehicle_tra[time_index].time_stamp_
+
+
+    # Action cost
+    def calculateActionCost(self):
+        if self.ego_potential_behavior_ == LateralBehavior.LaneKeeping:
+            return 0.0
+        else:
+            return 0.5
 
 # IDM model
 class IDM:
@@ -660,9 +694,49 @@ class IdealSteerModel:
 
 # Rectangle class, denotes the area occupied by the vehicle
 class Rectangle:
-    def __init__(self, center_point, theta, length, width):
-        # Calculate four vertex of the rectangle
-        pass
+    def __init__(self, center_point, length, width):
+        self.center_point_ = center_point
+        self.length_ = length
+        self.width_ = width
+
+    # Judge rectangle collision
+    def isCollision(self, other_rectangle):
+
+        # Calculate axes of two rectangles
+        this_rectangle_axes = np.array([[0.0, 0.0], [0.0, 0.0]])
+        other_rectangle_axes = np.array([[0.0, 0.0], [0.0, 0.0]])
+        this_rectangle_axes[0][0] = np.cos(self.center_point_.theta_)
+        this_rectangle_axes[0][1] = np.sin(self.center_point_.theta_)
+        this_rectangle_axes[1][0] = -np.sin(self.center_point_.theta_)
+        this_rectangle_axes[1][1] = np.cos(self.center_point_.theta_)
+        other_rectangle_axes[0][0] = np.cos(other_rectangle.center_point_.theta_)
+        other_rectangle_axes[0][1] = np.sin(other_rectangle.center_point_.theta_)
+        other_rectangle_axes[1][0] = -np.sin(other_rectangle.center_point_.theta_)
+        other_rectangle_axes[1][1] = np.cos(other_rectangle.center_point_.theta_)
+
+        # Calculate center point vector between two center points of the rectangles
+        center_vector = np.array([0.0, 0.0])
+        center_vector[0] = self.center_point_.x_ - other_rectangle.center_point_.x_
+        center_vector[1] = self.center_point_.y_ - other_rectangle.center_point_.y_
+
+        # For the axes of the first rectangle, calculate collision
+        for i in range(0, len(this_rectangle_axes)):
+            axis = this_rectangle_axes[i]
+            distance = self.length_ / 2.0 * np.dot(axis, this_rectangle_axes[0]) + self.width_ / 2.0 * np.dot(axis, this_rectangle_axes[1]) + other_rectangle.length_ / 2.0 * np.dot(axis, other_rectangle_axes[0]) + other_rectangle.width_ / 2.0 * np.dot(axis, other_rectangle_axes[1])
+            if distance <= np.dot(axis, center_vector):
+                return False
+
+        # For the axes of the second rectangle, calculation collision
+        for j in range(0, len(other_rectangle_axes)):
+            axis = other_rectangle_axes[j]
+            distance = self.length_ / 2.0 * np.dot(axis, this_rectangle_axes[0]) + self.width_ / 2.0 * np.dot(axis, this_rectangle_axes[1]) + other_rectangle.length_ / 2.0 * np.dot(axis, other_rectangle_axes[0]) + other_rectangle.width_ / 2.0 * np.dot(axis, other_rectangle_axes[1])
+            if distance <= np.dot(axis, center_vector):
+                return False
+
+        return True
+
+
+
 
 
 # Vehicle class
@@ -679,8 +753,8 @@ class Vehicle:
         self.curvature_ = 0.0
         self.steer_ = 0.0
 
-    def getRectangle(self):
-        pass
+        # Construct occupied rectangle
+        self.rectangle_ = Rectangle(position, length, width)
 
 
 class SemanticVehicle:
