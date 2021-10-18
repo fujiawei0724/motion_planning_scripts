@@ -13,6 +13,7 @@ import random
 import copy
 import math
 from collections import namedtuple
+from collections import defaultdict
 from enum import Enum, unique
 
 
@@ -147,10 +148,10 @@ class LaneServer:
         self.lanes_ = copy.deepcopy(lanes)
         self.vehicles_ = vehicles
         self.semantic_vehicles_ = {}
-        self.update()
+        self.initialize()
 
-    # Update lane vehicle information
-    def update(self):
+    # Initialize information
+    def initialize(self):
         for vehicle in self.vehicles_:
             if vehicle.id_ != 0:
                 semantic_vehicle = self.calculateSurroundVehicleBehavior(vehicle)
@@ -159,7 +160,25 @@ class LaneServer:
                 semantic_vehicle = self.calculateEgoVehicleBehavior(vehicle)
                 self.semantic_vehicles_[semantic_vehicle.vehicle_.id_] = semantic_vehicle
 
-    # Find the nearest lane from a postion
+    # Set ego vehicle potential behavior
+    def setEgoBehavior(self, potential_behavior):
+        assert potential_behavior in self.semantic_vehicles_[0].potential_behaviors_
+        self.semantic_vehicles_[0].potential_behaviors_ = potential_behavior
+        self.calculateEgoVehicleReferenceLane(self.semantic_vehicles_[0], potential_behavior)
+
+    # Update lane server information
+    def update(self, vehicle_set, ego_potential_behavior):
+        # Update vehicle information
+        self.vehicles_.clear()
+        self.semantic_vehicles_.clear()
+        self.vehicles_ = vehicle_set
+
+        # Reinitialize
+        self.initialize()
+        self.setEgoBehavior(ego_potential_behavior)
+
+
+    # Find the nearest lane from a position
     def findNearestLane(self, cur_position):
         if not self.lanes_:
             assert False
@@ -238,8 +257,6 @@ class LaneServer:
         else:
             assert False
 
-        return semantic_vehicle
-
     # Calculate leading vehicle, not limited to ego vehicle
     def getLeadingVehicle(self, cur_semantic_vehicle):
         reference_lane = cur_semantic_vehicle.reference_lane_
@@ -299,24 +316,110 @@ class AgentGenerator:
 # Forward simulation
 class ForwardExtender:
 
-    def __init__(self, ego_vehicle, potential_behavior, surround_agents, lane_server):
+    def __init__(self, ego_vehicle, surround_agents, lane_server, dt, predict_time_span):
         # Information cache
         self.ego_vehicle_ = copy.deepcopy(ego_vehicle)
-        self.potential_behavior_ = copy.deepcopy(potential_behavior)
         self.surround_agents_ = copy.deepcopy(surround_agents)
         self.lane_server_ = copy.deepcopy(lane_server)
+        self.dt_ = dt
+        self.predict_time_span_ = predict_time_span
 
-    # Forward extend with interaction
-    def multiAgentForward(self):
-        pass
+    # Forward extend with interaction among vehicles
+    def multiAgentForward(self, ego_potential_behavior):
 
-    # Forward extend without interaction
+        # Determine ego vehicle id
+        ego_vehicle_id = 0
+        # vehicle_set = copy.deepcopy(self.lane_server_.semantic_vehicles_)
+
+        # Initialize current vehicle states and surround vehicle states in different time stamp
+        ego_tra = []
+        surround_tras = defaultdict(list)
+        ego_tra.append(self.lane_server_.semantic_vehicles_[ego_vehicle_id])
+        for this_vehicle_id, this_vehicle in self.lane_server_.semantic_vehicles_.items():
+            if this_vehicle_id == ego_vehicle_id:
+                continue
+            else:
+                surround_tras[this_vehicle_id].append(this_vehicle)
+
+        # Determine number of forward update
+        num_steps_forward = self.predict_time_span_ // self.dt_
+
+        # Start forward simulation
+        for step_index in range(0, num_steps_forward):
+            # Initialize cache
+            states_cache = {}
+
+            for veh_id, veh in self.lane_server_.semantic_vehicles_.items():
+                # Determine initial vehicles information
+                desired_velocity = veh.vehicle_.velocity_
+                init_time_stamp = veh.vehicle_.time_stamp_
+                if veh_id == ego_vehicle_id:
+                    # TODO: determine ego vehicle desired velocity
+                    pass
+
+                # # Determine other vehicle set
+                # other_vehicle_set = {}
+                # for veh_other_id, v_other in vehicle_set.items():
+                #     if veh_other_id == veh_id:
+                #         continue
+                #     other_vehicle_set[veh_other_id] = v_other
+
+                # TODO: set vehicles speed limits from reference lane speed limit
+                desired_veh_state = self.forwardOnce(ego_potential_behavior, veh.vehicle_)
+
+                # Cache
+                states_cache[desired_veh_state.id_] = desired_veh_state
+
+            # Update information and lane server
+            self.lane_server_.update(list(states_cache.values()), ego_potential_behavior)
+
+            # Store trajectories
+            for vehicle_id, state in states_cache.items():
+                if vehicle_id == ego_vehicle_id:
+                    ego_tra.append(state)
+                else:
+                    surround_tras[vehicle_id].append(state)
+
+        # Construct trajectories
+        ego_trajectory = Trajectory(ego_tra)
+        surround_trajectories = {}
+        for vehicle_id, vehicle_tra in surround_tras.items():
+            if vehicle_id == ego_vehicle_id:
+                assert False
+            surround_trajectories[vehicle_id] = Trajectory(vehicle_tra)
+
+        return ego_trajectory, surround_trajectories
+
+
+
+
+
+
+
+    # Forward extend without interaction among vehicles
     def openLoopForward(self):
         pass
 
     # Forward once from current state
-    def forwardOnce(self):
-        pass
+    def forwardOnce(self, ego_potential_behavior, cur_vehicle_state):
+        # Load ego potential behavior
+        self.lane_server_.setEgoBehavior(ego_potential_behavior)
+
+        # Load current semantic vehicle
+        cur_semantic_vehicle = self.lane_server_.semantic_vehicles_[cur_vehicle_state.id_]
+
+        # Calculate steer
+        steer = self.calculateSteer(cur_semantic_vehicle)
+
+        # Calculate velocity
+        velocity = self.calculateVelocity(cur_semantic_vehicle, self.dt_)
+
+        # Calculate desired state
+        desired_vehicle_state = self.calculateDesiredState(cur_semantic_vehicle, steer, velocity, self.dt_)
+
+        return desired_vehicle_state
+
+
 
     # Calculate steer
     def calculateSteer(self, semantic_vehicle):
@@ -379,10 +482,6 @@ class ForwardExtender:
         return target_velocity
 
     # Calculate desired state
-    def calculateDesiredDistance(self):
-        pass
-
-    # Calculate desired state
     def calculateDesiredState(self, semantic_vehicle, steer, velocity, dt):
 
         # Load parameters for ideal steer model
@@ -412,7 +511,7 @@ class PolicyEvaluater:
 # IDM model
 class IDM:
     # IDM config
-    desired_velocity = 0.0
+    desired_velocity = 0.0 # Update with the lane information and vehicle information
     vehicle_length = 5.0
     minimum_spacing = 2.0
     desired_headaway_time = 1.0
@@ -594,7 +693,10 @@ class SemanticVehicle:
 
 # Trajectory class, includes
 class Trajectory:
-    def __init__(self):
+    def __init__(self, vehicle_states):
+        self.vehicle_states_ = vehicle_states
+
+    def isCollision(self, judge_trajectory):
         pass
 
 
