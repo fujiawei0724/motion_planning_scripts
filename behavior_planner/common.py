@@ -12,7 +12,10 @@ import numpy as np
 import random
 import copy
 import math
-from collections import namedtuple
+# import cv2
+import matplotlib.pyplot as plt
+from shapely.geometry import Polygon
+# from collections import namedtuple
 from collections import defaultdict
 from enum import Enum, unique
 
@@ -77,9 +80,32 @@ class Tools:
         return res
 
 
+    # For OBB rectangle collision judgement
+    @staticmethod
+    def getProjectionOnVertex(vertex, axis):
+        min = float('inf')
+        max = -float('inf')
+        for vertice in vertex:
+            projection = np.dot(vertice, axis)
+            if projection < min:
+                min = projection
+            if projection > max:
+                max = projection
+        proj = np.array([min, max])
+        return proj
+
+    # For OBB rectangle collision judgement
+    @staticmethod
+    def getOverlapLength(proj_1, proj_2):
+        if proj_1[0] > proj_2[1] or proj_2[0] > proj_1[1]:
+            return 0
+        else:
+            return min(proj_1[1], proj_2[1]) - max(proj_1[0], proj_2[0])
+
+
 # Path point class
 class PathPoint:
-    def __init__(self, x, y, theta):
+    def __init__(self, x, y, theta=None):
         self.x_ = x
         self.y_ = y
         self.theta_ = theta
@@ -508,11 +534,11 @@ class PolicyEvaluater:
     def loadData(self, ego_potential_behavior, ego_trajectory, surround_trajectories):
         self.ego_potential_behavior_ = ego_potential_behavior
         self.ego_trajectory_ = ego_trajectory
-        self.surround_trajectories_ = surround_trajectories
+        self.surround_trajectories_ = list(surround_trajectories.values())
 
     # Accumulate all the components of cost function
     def calculateCost(self):
-        pass
+        return self.calculateEfficiencyCost() + self.calculateSafetyCost() + self.calculateActionCost()
 
     # Efficiency cost
     def calculateEfficiencyCost(self):
@@ -529,10 +555,10 @@ class PolicyEvaluater:
 
         # Traverse trajectory
         ego_vehicle_tra = self.ego_trajectory_
-        for sur_vehicle_tra in self.surround_trajectories_:
-            assert len(ego_vehicle_tra) == len(sur_vehicle_tra)
-            for time_index in range(0, len(ego_vehicle_tra)):
-                assert ego_vehicle_tra[time_index].time_stamp_ == sur_vehicle_tra[time_index].time_stamp_
+        for ego_vehicle_tra in self.surround_trajectories_:
+            safety_cost += ego_vehicle_tra.calculateSafetyCost(ego_vehicle_tra)
+
+        return safety_cost
 
 
     # Action cost
@@ -699,42 +725,76 @@ class Rectangle:
         self.length_ = length
         self.width_ = width
 
-    # Judge rectangle collision
-    def isCollision(self, other_rectangle):
+        # Load four vertex and two axes of rectangle
+        self.vertex_ = []
+        self.generateVertex()
+        self.axes_ = []
+        self.generateAxes()
 
-        # Calculate axes of two rectangles
-        this_rectangle_axes = np.array([[0.0, 0.0], [0.0, 0.0]])
-        other_rectangle_axes = np.array([[0.0, 0.0], [0.0, 0.0]])
-        this_rectangle_axes[0][0] = np.cos(self.center_point_.theta_)
-        this_rectangle_axes[0][1] = np.sin(self.center_point_.theta_)
-        this_rectangle_axes[1][0] = -np.sin(self.center_point_.theta_)
-        this_rectangle_axes[1][1] = np.cos(self.center_point_.theta_)
-        other_rectangle_axes[0][0] = np.cos(other_rectangle.center_point_.theta_)
-        other_rectangle_axes[0][1] = np.sin(other_rectangle.center_point_.theta_)
-        other_rectangle_axes[1][0] = -np.sin(other_rectangle.center_point_.theta_)
-        other_rectangle_axes[1][1] = np.cos(other_rectangle.center_point_.theta_)
 
-        # Calculate center point vector between two center points of the rectangles
-        center_vector = np.array([0.0, 0.0])
-        center_vector[0] = self.center_point_.x_ - other_rectangle.center_point_.x_
-        center_vector[1] = self.center_point_.y_ - other_rectangle.center_point_.y_
+    # Generate vertex
+    def generateVertex(self):
 
-        # For the axes of the first rectangle, calculate collision
-        for i in range(0, len(this_rectangle_axes)):
-            axis = this_rectangle_axes[i]
-            distance = self.length_ / 2.0 * np.dot(axis, this_rectangle_axes[0]) + self.width_ / 2.0 * np.dot(axis, this_rectangle_axes[1]) + other_rectangle.length_ / 2.0 * np.dot(axis, other_rectangle_axes[0]) + other_rectangle.width_ / 2.0 * np.dot(axis, other_rectangle_axes[1])
-            if distance <= np.dot(axis, center_vector):
-                return False
+        # Calculate four vertex position respectively
+        point_1_x = self.center_point_.x_ + self.length_ * 0.5 * np.cos(self.center_point_.theta_) - self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_1_y = self.center_point_.y_ + self.length_ * 0.5 * np.sin(self.center_point_.theta_) + self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_2_x = self.center_point_.x_ + self.length_ * 0.5 * np.cos(self.center_point_.theta_) + self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_2_y = self.center_point_.y_ + self.length_ * 0.5 * np.sin(self.center_point_.theta_) - self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_3_x = self.center_point_.x_ - self.length_ * 0.5 * np.cos(self.center_point_.theta_) + self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_3_y = self.center_point_.y_ - self.length_ * 0.5 * np.sin(self.center_point_.theta_) - self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_4_x = self.center_point_.x_ - self.length_ * 0.5 * np.cos(self.center_point_.theta_) - self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_4_y = self.center_point_.y_ - self.length_ * 0.5 * np.sin(self.center_point_.theta_) + self.width_ * 0.5 * np.cos(self.center_point_.theta_)
 
-        # For the axes of the second rectangle, calculation collision
-        for j in range(0, len(other_rectangle_axes)):
-            axis = other_rectangle_axes[j]
-            distance = self.length_ / 2.0 * np.dot(axis, this_rectangle_axes[0]) + self.width_ / 2.0 * np.dot(axis, this_rectangle_axes[1]) + other_rectangle.length_ / 2.0 * np.dot(axis, other_rectangle_axes[0]) + other_rectangle.width_ / 2.0 * np.dot(axis, other_rectangle_axes[1])
-            if distance <= np.dot(axis, center_vector):
+        # Store
+        self.vertex_.append([point_1_x, point_1_y])
+        self.vertex_.append([point_2_x, point_2_y])
+        self.vertex_.append([point_3_x, point_3_y])
+        self.vertex_.append([point_4_x, point_4_y])
+
+        self.vertex_ = np.array(self.vertex_)
+
+    # Generate axes
+    def generateAxes(self):
+        # For the first two vertex
+        vec_1 = np.array([self.vertex_[1][0] - self.vertex_[0][0], self.vertex_[1][1] - self.vertex_[0][1]])
+        length_1 = np.linalg.norm(vec_1)
+        normalized_vec_1 = vec_1 / length_1
+        self.axes_.append([-normalized_vec_1[1], normalized_vec_1[0]])
+
+        # For the second and third vertex
+        vec_2 = np.array([self.vertex_[2][0] - self.vertex_[1][0], self.vertex_[2][1] - self.vertex_[1][1]])
+        length_2 = np.linalg.norm(vec_2)
+        normalized_vec_2 = vec_2 / length_2
+        self.axes_.append([-normalized_vec_2[1], normalized_vec_2[0]])
+
+        self.axes_ = np.array(self.axes_)
+
+
+
+    # Judge collision
+    @classmethod
+    def isCollision(cls, rectangle_1, rectangle_2):
+
+        # Get vertex of two rectangles
+        rectangle_1_vertex = rectangle_1.vertex_
+        rectangle_2_vertex = rectangle_2.vertex_
+
+        # Pooling axes of two rectangle
+        axes = np.vstack((rectangle_1.axes_, rectangle_2.axes_))
+
+        # Traverse axis
+        for axis in axes:
+            # Get projection
+            proj_1 = Tools.getProjectionOnVertex(rectangle_1_vertex, axis)
+            proj_2 = Tools.getProjectionOnVertex(rectangle_2_vertex, axis)
+
+            # Calculate overlap length
+            overlap_length = Tools.getOverlapLength(proj_1, proj_2)
+
+            if abs(overlap_length) < 1e-6:
                 return False
 
         return True
-
 
 
 
@@ -770,9 +830,48 @@ class Trajectory:
     def __init__(self, vehicle_states):
         self.vehicle_states_ = vehicle_states
 
-    def isCollision(self, judge_trajectory):
-        pass
+    # Calculate safety cost
+    def calculateSafetyCost(self, judge_trajectory):
+        assert len(self.vehicle_states_) == len(judge_trajectory.vehicle_states_)
 
+        # Initialize safety cost
+        safety_cost = 0.0
+
+        # Judge collision
+        for time_index in range(0, len(self.vehicle_states_)):
+            assert self.vehicle_states_[time_index].time_stamp_ == judge_trajectory.vehicle_states_[time_index].time_stamp_
+
+            # Judge whether collision
+            is_collision = Rectangle.isCollision(self.vehicle_states_[time_index].rectangle_, judge_trajectory.vehicle_states_[time_index].rectangle_)
+            if is_collision:
+                safety_cost += 0.01 * abs(
+                    self.vehicle_states_[time_index].velocity_ - judge_trajectory[time_index].velocity_) * 0.5
+
+        return safety_cost
 
 if __name__ == '__main__':
-    pass
+
+    # # Test rectangle and rectangle collision, visualization with plt
+    # # Construct two rectangles and corresponding polygons
+    # rectangle_1 = Rectangle(PathPoint(30.0, 20.0, 0.0), 5.0, 2.0)
+    # rectangle_2 = Rectangle(PathPoint(25.0, 20.0, 0.8), 5.0, 2.0)
+    # polygon_1 = Polygon(rectangle_1.vertex_)
+    # polygon_2 = Polygon(rectangle_2.vertex_)
+    #
+    # # Judge collision
+    # is_collison = Rectangle.isCollision(rectangle_1, rectangle_2)
+    # print(is_collison)
+    #
+    # # Visualization
+    # plt.figure(0, (12, 6))
+    # plt.title('Test rectangle and collision')
+    # plt.plot(*polygon_1.exterior.xy, c='r')
+    # plt.plot(*polygon_2.exterior.xy, c='g')
+    # plt.xlim(0.0, 100.0)
+    # plt.ylim(0.0, 50.0)
+    # plt.axis('equal')
+    # plt.show()
+
+    # Test vehicle and semantic vehicle
+    
+
