@@ -134,18 +134,30 @@ class PathPoint:
 # Lane class
 class Lane:
     def __init__(self, start_point, end_point, id):
-        # Generate lane path points information
         self.id_ = id
+
+        # Generate lane path points and lane boundary points
+        # Initialize information
         sample_num = np.linalg.norm(np.array([end_point.x_ - start_point.x_, end_point.y_ - start_point.y_])) / 0.1
         samples = np.linspace(0.0, 1.0, int(sample_num), endpoint=True)
         x_diff = end_point.x_ - start_point.x_
         y_diff = end_point.y_ - start_point.y_
         lane_theta = np.arctan2(end_point.y_ - start_point.y_, end_point.x_ - start_point.x_)
         lane_path_points = []
+        lane_left_boundary_points = []
+        lane_right_boundary_points = []
+
+        # Sampling based generation
+        lane_width = 3.5
         for sample in samples:
-            lane_path_points.append(
-                PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
+            lane_path_points.append(PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
+            lane_left_boundary_points.append([start_point.x_ + sample * x_diff + np.cos(lane_theta + math.pi / 2.0) * lane_width / 2.0, start_point.y_ + sample * y_diff + np.sin(lane_theta + math.pi / 2.0) * lane_width / 2.0])
+            lane_right_boundary_points.append([start_point.x_ + sample * x_diff + np.cos(lane_theta - math.pi / 2.0) * lane_width / 2.0, start_point.y_ + sample * y_diff + np.sin(lane_theta - math.pi / 2.0) * lane_width / 2.0])
         self.path_points_ = lane_path_points
+        self.left_boundary_points_ = np.array(lane_left_boundary_points)
+        self.right_boundary_points_ = np.array(lane_right_boundary_points)
+
+        # Calculate lane points margin
         self.path_points_margin_ = lane_path_points[0].calculateDistance(lane_path_points[1])
 
     # Calculate the distance from a position to lane
@@ -330,8 +342,11 @@ class LaneServer:
 
 # Agent vehicle generator (without ego vehicle)
 class AgentGenerator:
-    def __init__(self):
+    def __init__(self, lanes=None):
         self.index_ = 1
+
+        # TODO: for lane information inputting
+        self.lanes_ = lanes
 
     # Generate surround agents information
     def generateSingleAgent(self):
@@ -339,20 +354,22 @@ class AgentGenerator:
         agent_width = random.uniform(1.8, 2.5)
         agent_velocity = random.uniform(3.0, 10.0)
         agent_acceleration = random.uniform(-1.0, 1.0)
-        x_position = random.uniform(0.0, 80.0)
+
+        # TODO: calculate x, y position based on lanes information
+        x_position = random.uniform(0.0, 280.0)
         y_position = random.uniform(-3.5, 3.5)
         theta = random.uniform(-0.2, 0.2)
         agent_position = PathPoint(x_position, y_position, theta)
-        ego_vehicle = Vehicle(self.index_, agent_position, agent_length, agent_width, agent_velocity,
+        this_vehicle = Vehicle(self.index_, agent_position, agent_length, agent_width, agent_velocity,
                               agent_acceleration)
         self.index_ += 1
-        return ego_vehicle
+        return this_vehicle
 
     def generateAgents(self, num):
         agents = {}
         for i in range(1, num + 1):
-            ego_vehicle = self.generateSingleAgent()
-            agents[ego_vehicle.id_] = ego_vehicle
+            this_vehicle = self.generateSingleAgent()
+            agents[this_vehicle.id_] = this_vehicle
         return agents
 
 
@@ -889,19 +906,72 @@ if __name__ == '__main__':
     # plt.axis('equal')
     # plt.show()
 
-    # Test lane, vehicle and semantic vehicle
+    # Test lane and vehicle
     # Initialize lane
     center_lane_start_point = PathPoint(0.0, 0.0)
     center_lane_end_point = PathPoint(500.0, 0.0)
     center_lane = Lane(center_lane_start_point, center_lane_end_point, LaneId.CenterLane)
     center_lane_points_array = Visualization.transformPathPointsToArray(center_lane.path_points_)
+    left_lane_start_point = PathPoint(0.0, 3.5)
+    left_lane_end_point = PathPoint(500.0, 3.5)
+    left_lane = Lane(left_lane_start_point, left_lane_end_point, LaneId.LeftLane)
+    left_lane_points_array = Visualization.transformPathPointsToArray(left_lane.path_points_)
+    right_lane_start_point = PathPoint(0.0, -3.5)
+    right_lane_end_point = PathPoint(500.0, -3.5)
+    right_lane = Lane(right_lane_start_point, right_lane_end_point, LaneId.RightLane)
+    right_lane_points_array = Visualization.transformPathPointsToArray(right_lane.path_points_)
 
-    # Initialize ego vehicle 
+
+    # Initialize ego vehicle
+    ego_vehicle = Vehicle(0, PathPoint(20.0, 0.0, 0.0), 5.0, 2.0, 5.0, 0.0, 0.0)
+    ego_vehicle_polygon = Polygon(ego_vehicle.rectangle_.vertex_)
+
+    # Generate surround agent vehicles
+    # Set random seed
+    random.seed(16)
+    agent_generator = AgentGenerator()
+    surround_vehicle_set = agent_generator.generateAgents(10)
+
+    # Calculate vehicles' distance to a specified lane
+    for sur_veh in surround_vehicle_set.values():
+        dis_to_center_lane = center_lane.calculatePositionToLaneDistance(sur_veh.position_)
+        dis_to_left_lane = left_lane.calculatePositionToLaneDistance(sur_veh.position_)
+        dis_to_right_lane = right_lane.calculatePositionToLaneDistance(sur_veh.position_)
+
+        print('Vehicle id: {}, dis to center lane: {}, dis to left lane: {}, dis to right lane: {}'.format(sur_veh.id_, dis_to_center_lane, dis_to_left_lane, dis_to_right_lane))
+
+    
+
+
+
+    # Test lane server and semantic vehicle
+
+
+
 
     plt.figure(1, (12, 6))
-    plt.title('Test lane')
-    plt.plot(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='black', linewidth=1.0)
-    plt.scatter(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='red', s=1.0)
+    plt.title('Test lane, vehicle and semantic vehicle')
+
+    # Visualization lane
+    plt.plot(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='m', linewidth=1.0)
+    plt.plot(center_lane.left_boundary_points_[:, 0], center_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+    plt.plot(center_lane.right_boundary_points_[:, 0], center_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+    plt.plot(left_lane_points_array[:, 0], left_lane_points_array[:, 1], c='m', linewidth=1.0)
+    plt.plot(left_lane.left_boundary_points_[:, 0], left_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+    plt.plot(left_lane.right_boundary_points_[:, 0], left_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+    plt.plot(right_lane_points_array[:, 0], right_lane_points_array[:, 1], c='m', linewidth=1.0)
+    plt.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+    plt.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+
+    # Visualization vehicle
+    plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
+    plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
+    for surround_vehicle in surround_vehicle_set.values():
+        surround_vehicle_polygon = Polygon(surround_vehicle.rectangle_.vertex_)
+        plt.plot(*surround_vehicle_polygon.exterior.xy, c='green')
+        plt.text(surround_vehicle.position_.x_, surround_vehicle.position_.y_, 'id: {}, v: {}'.format(surround_vehicle.id_, surround_vehicle.velocity_), size=10.0)
+
+    plt.axis('equal')
     plt.show()
 
 
