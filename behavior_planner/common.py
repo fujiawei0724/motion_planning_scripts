@@ -240,7 +240,7 @@ class LaneServer:
 
         # Reinitialize
         self.initialize()
-        self.setEgoBehavior(ego_potential_behavior)
+        self.setEgoVehicleBehavior(ego_potential_behavior)
 
 
     # Find the nearest lane from a position
@@ -562,8 +562,7 @@ class ForwardExtender:
 
         # Load parameters for ideal steer model
         # Wheelbase len need to fix, for different vehicles, their wheelbase length are different
-        ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration,
-                                            Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
+        ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration, Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
         ideal_steer_model.setState(semantic_vehicle.vehicle_)
         ideal_steer_model.setControl([steer, velocity])
         ideal_steer_model.step(dt)
@@ -625,6 +624,7 @@ class PolicyEvaluater:
             return 0.5
 
 # IDM model
+# TODO: parameters need to adjust the situation
 class IDM:
     # IDM config
     desired_velocity = 10.0 # Update with the lane information, vehicle information and user designed
@@ -682,8 +682,7 @@ class IDM:
 # Ideal steer model
 class IdealSteerModel:
 
-    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc,
-                 max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
+    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc, max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
         self.wheelbase_len_ = wheelbase_len
         self.max_lon_acc_ = max_lon_acc
         self.max_lon_dec_ = max_lon_dec
@@ -699,7 +698,7 @@ class IdealSteerModel:
         self.control_ = []
         self.state_ = None
         # Internal_state[0] means x position, internal_state[1] means y position, internal_state[2] means angle, internal_state[3] means velocity, internal_state[4] means steer
-        self.internal_state_ = None
+        self.internal_state_ = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
         self.desired_lon_acc_ = 0.0
         self.desired_lat_acc_ = 0.0
         self.desired_steer_rate_ = 0.0
@@ -708,13 +707,13 @@ class IdealSteerModel:
     def setControl(self, control):
         self.control_ = control
 
-    # Set state information, use vehicle class reprsent vehicle state
+    # Set state information, use vehicle class represent vehicle state
     def setState(self, vehicle):
-        self.state_ = vehicle
+        self.state_ = copy.deepcopy(vehicle)
 
     # Truncate control
     def truncateControl(self, dt):
-        self.desired_lon_acc_ = self.control_[0] - self.state_.velocity / dt
+        self.desired_lon_acc_ = (self.control_[1] - self.state_.velocity_) / dt
         desired_lon_jerk = (self.desired_lon_acc_ - self.state_.acceleration_) / dt
         desired_lon_jerk = Tools.truncate(desired_lon_jerk, -self.max_lon_dec_jerk, self.max_lon_acc_jerk_)
         self.desired_lon_acc_ = desired_lon_jerk * dt + self.state_.acceleration_
@@ -726,7 +725,7 @@ class IdealSteerModel:
         lat_jerk_desired = Tools.truncate(lat_jerk_desired, -self.max_lat_jerk_, self.max_lat_jerk_)
         desired_lat_acc_ = lat_jerk_desired * dt + lat_acc_ori
         desired_lat_acc_ = Tools.truncate(desired_lat_acc_, -self.max_lat_acc_, self.max_lat_acc_)
-        self.control_[0] = np.atan(
+        self.control_[0] = np.arctan(
             desired_lat_acc_ * self.wheelbase_len_ / max(pow(self.control_[1], 2.0), 0.1 * Config.BigEPS))
         self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_) / dt
         self.desired_steer_rate_ = Tools.truncate(self.desired_steer_rate_, -self.max_steer_rate_, self.max_steer_rate_)
@@ -734,12 +733,17 @@ class IdealSteerModel:
 
     # Forward once
     def step(self, dt):
-        self.state_.steer_ = np.atan(self.state_.curvature_ * self.wheelbase_len_)
+        self.state_.steer_ = np.arctan(self.state_.curvature_ * self.wheelbase_len_)
         self.updateInternalState()
         self.control_[1] = max(0.0, self.control_[1])
         self.control_[0] = Tools.truncate(self.control_[0], -self.max_steering_angle_, self.max_steering_angle_)
         self.truncateControl(dt)
         self.desired_lon_acc_ = (self.control_[1] - self.state_.velocity_) / dt
+
+        # For DEBUG
+        # print('Final control velocity input: {}'.format(self.control_[1]))
+        # print('Final state velocity input: {}'.format(self.state_.velocity_))
+        # print('Final desired longitudinal acceleration: {}'.format(self.desired_lon_acc_))
         self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_)
 
         # Linear predict function
@@ -754,14 +758,22 @@ class IdealSteerModel:
             return predict_state
 
         # Generate predict state
-        predict_state = linearPredict(self.internal_state_, dt)
-        self.state_.position_.x_ = predict_state[0]
-        self.state_.position_.y_ = predict_state[1]
-        self.state_.position_.theta_ = Tools.normalizeAngle(predict_state[2])
-        self.state_.velocity_ = predict_state[3]
-        self.state_.steer_ = Tools.normalizeAngle(predict_state[4])
-        self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
-        self.state_.acceleration_ = self.desired_lon_acc_
+        predict_state = copy.deepcopy(self.internal_state_)
+        iteration_num = 40
+        for _ in range(0, iteration_num):
+            predict_state = linearPredict(predict_state, dt / iteration_num)
+        predict_state_position = PathPoint(predict_state[0], predict_state[1], Tools.normalizeAngle(predict_state[2]))
+
+        # self.state_.position_.x_ = predict_state[0]
+        # self.state_.position_.y_ = predict_state[1]
+        # self.state_.position_.theta_ = Tools.normalizeAngle(predict_state[2])
+        # self.state_.velocity_ = predict_state[3]
+        # self.state_.steer_ = Tools.normalizeAngle(predict_state[4])
+        # self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
+        # self.state_.acceleration_ = self.desired_lon_acc_
+
+        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_, predict_state[3], self.desired_lon_acc_, np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_, Tools.normalizeAngle(predict_state[4]))
+
 
         self.updateInternalState()
 
@@ -857,7 +869,7 @@ class Rectangle:
 
 # Vehicle class
 class Vehicle:
-    def __init__(self, vehicle_id, position, length, width, velocity, acceleration, time_stamp=None):
+    def __init__(self, vehicle_id, position, length, width, velocity, acceleration, time_stamp=None, curvature=0.0, steer=0.0):
         self.id_ = vehicle_id
         self.position_ = position
         self.length_ = length
@@ -866,8 +878,8 @@ class Vehicle:
         self.acceleration_ = acceleration
         self.time_stamp_ = time_stamp
         # TODO: add curvature and steer information
-        self.curvature_ = 0.0
-        self.steer_ = 0.0
+        self.curvature_ = curvature
+        self.steer_ = steer
 
         # Construct occupied rectangle
         self.rectangle_ = Rectangle(position, length, width)
@@ -1015,20 +1027,53 @@ if __name__ == '__main__':
     #     else:
     #         print('Vehicle id: {}, reference lane: {}, its leading vehicle id: {}'.format(seman_veh_id, seman_veh.reference_lane_.id_, leading_seman_veh.vehicle_.id_))
 
-    # Test IDM
-    # Set parameters
-    cur_s = 20.0
-    leading_s = 30.0
-    cur_velocity = 5.0
-    leading_velocity = 10.0
+    # # Test IDM
+    # # Set parameters
+    # cur_s = 20.0
+    # leading_s = 30.0
+    # cur_velocity = 5.0
+    # leading_velocity = 10.0
+    #
+    # # Calculate velocity and acceleration
+    # idm_velocity = IDM.calculateVelocity(cur_s, leading_s, cur_velocity, leading_velocity, 0.4)
+    # idm_acceleration = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity)
+    #
+    # print('IDM velocity: {}'.format(idm_velocity))
+    # print('IDM acceleration: {}'.format(idm_acceleration))
 
-    # Calculate velocity and acceleration
-    idm_velocity = IDM.calculateVelocity(cur_s, leading_s, cur_velocity, leading_velocity, 0.4)
-    idm_acceleration = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity)
+    # # Test ideal steer model
+    # # Load parameters for ideal steer model
+    # ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration, Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
+    #
+    # # Set current state and control information
+    # ideal_steer_model.setState(ego_vehicle)
+    # ideal_steer_model.setControl([-0.05, 8.0])
+    # ideal_steer_model.step(0.4)
+    #
+    # # Get first predicted state
+    # predicted_state = ideal_steer_model.state_
+    # predicted_state_polygon = Polygon(predicted_state.rectangle_.vertex_)
+    #
+    # # Get second predicted state
+    # ideal_steer_model.setState(predicted_state)
+    # ideal_steer_model.setControl([-0.05, 8.0])
+    # ideal_steer_model.step(0.4)
+    # predicted_state_2 = ideal_steer_model.state_
+    # predicted_state_polygon_2 = Polygon(predicted_state_2.rectangle_.vertex_)
 
+    # Visualization ego vehicle and predicted state
+    # plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
+    # plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
+    #
+    # plt.plot(*predicted_state_polygon.exterior.xy, c='r', ls='--')
+    # plt.text(predicted_state.position_.x_, predicted_state.position_.y_, 'id: {}, v: {}'.format(predicted_state.id_, predicted_state.velocity_), size=10.0)
+    #
+    # plt.plot(*predicted_state_polygon_2.exterior.xy, c='r', ls='--')
+    # plt.text(predicted_state_2.position_.x_, predicted_state_2.position_.y_, 'id: {}, v: {}'.format(predicted_state_2.id_, predicted_state_2.velocity_), size=10.0)
 
-    print('IDM velocity: {}'.format(idm_velocity))
-    print('IDM acceleration: {}'.format(idm_acceleration))
+    # Test forward extender
+    
+
 
 
 
@@ -1049,13 +1094,13 @@ if __name__ == '__main__':
     plt.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
     plt.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
 
-    # Visualization vehicle
-    plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
-    plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
-    for surround_vehicle in surround_vehicle_set.values():
-        surround_vehicle_polygon = Polygon(surround_vehicle.rectangle_.vertex_)
-        plt.plot(*surround_vehicle_polygon.exterior.xy, c='green')
-        plt.text(surround_vehicle.position_.x_, surround_vehicle.position_.y_, 'id: {}, v: {}'.format(surround_vehicle.id_, surround_vehicle.velocity_), size=10.0)
+    # # Visualization vehicle
+    # plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
+    # plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
+    # for surround_vehicle in surround_vehicle_set.values():
+    #     surround_vehicle_polygon = Polygon(surround_vehicle.rectangle_.vertex_)
+    #     plt.plot(*surround_vehicle_polygon.exterior.xy, c='green')
+    #     plt.text(surround_vehicle.position_.x_, surround_vehicle.position_.y_, 'id: {}, v: {}'.format(surround_vehicle.id_, surround_vehicle.velocity_), size=10.0)
 
     plt.axis('equal')
     plt.show()
