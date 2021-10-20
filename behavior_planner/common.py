@@ -170,7 +170,7 @@ class Lane:
         for lane_path_point in self.path_points_:
             cur_dis = position.calculateDistance(lane_path_point)
             min_distance = min(min_distance, cur_dis)
-        return min_distance
+        return min_distance if position.y_ >= self.path_points_[0].y_ else -min_distance
 
     # Calculate the nearest path point index in a lane from a specified position
     def calculateNearestIndexInLane(self, position):
@@ -215,17 +215,18 @@ class LaneServer:
             if vehicle.id_ != 0:
                 # For surround vehicle
                 semantic_vehicle = self.calculateSurroundVehicleBehavior(vehicle)
-                if semantic_vehicle is None:
-                    # Delete surround vehicle with error behavior
-                    continue
                 self.semantic_vehicles_[semantic_vehicle.vehicle_.id_] = semantic_vehicle
             else:
                 # For ego vehicle
                 semantic_vehicle = self.calculateEgoVehicleBehavior(vehicle)
                 self.semantic_vehicles_[semantic_vehicle.vehicle_.id_] = semantic_vehicle
 
+    # Get ego vehicle's all potential behavior
+    def getEgoVehicleBehaviors(self):
+        return self.semantic_vehicles_[0].potential_behaviors_
+
     # Set ego vehicle potential behavior
-    def setEgoBehavior(self, potential_behavior):
+    def setEgoVehicleBehavior(self, potential_behavior):
         assert potential_behavior in self.semantic_vehicles_[0].potential_behaviors_
         self.semantic_vehicles_[0].potential_behaviors_ = potential_behavior
         self.calculateEgoVehicleReferenceLane(self.semantic_vehicles_[0], potential_behavior)
@@ -248,7 +249,7 @@ class LaneServer:
             assert False
         dis_mp = {}
         for lane_id, lane in self.lanes_.items():
-            dis_mp[lane_id] = lane.calculatePositionToLaneDistance(cur_position)
+            dis_mp[lane_id] = abs(lane.calculatePositionToLaneDistance(cur_position))
         sorted_dis_mp = sorted(dis_mp.items(), key=lambda o: o[1])
         return self.lanes_[sorted_dis_mp[0][0]]
 
@@ -263,18 +264,33 @@ class LaneServer:
         lateral_velocity = vehicle.velocity_ * np.sin(vehicle.position_.theta_)
         lateral_distance = nearest_lane.calculatePositionToLaneDistance(vehicle.position_)
 
-        # Delete error agent and behavior
-        if nearest_lane.id_ == LaneId.LeftLane and lateral_velocity >= Config.lateral_velocity_threshold or nearest_lane.id_ == LaneId.RightLane and lateral_velocity <= -Config.lateral_velocity_threshold:
-            return None
-
         # Generate semantic vehicles
         if lateral_distance >= Config.lateral_distance_threshold and lateral_velocity >= Config.lateral_velocity_threshold:
-            return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.LeftLane])
+            # For change left
+            if nearest_lane.id_ == LaneId.CenterLane:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.LeftLane])
+            elif nearest_lane.id_ == LaneId.LeftLane:
+                # Error situation, set lane keeping
+                return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
+            elif nearest_lane.id_ == LaneId.RightLane:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.CenterLane])
+            else:
+                assert False
+
         elif lateral_distance <= -Config.lateral_distance_threshold and lateral_velocity <= -Config.lateral_velocity_threshold:
-            return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane,
-                                   self.lanes_[LaneId.RightLane])
+            # For change right
+            if nearest_lane.id_ == LaneId.CenterLane:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.RightLane])
+            elif nearest_lane.id_ == LaneId.LeftLane:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.CenterLane])
+            elif nearest_lane.id_ == LaneId.RightLane:
+                # Error situation, set lane keeping
+                return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
+            else:
+                assert False
+
         else:
-            return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, self.lanes_[LaneId.CenterLane])
+            return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
 
     # Calculate potential behavior for ego vehicle
     def calculateEgoVehicleBehavior(self, vehicle):
@@ -284,13 +300,13 @@ class LaneServer:
         nearest_lane = self.findNearestLane(vehicle.position_)
 
         if nearest_lane.id_ == LaneId.CenterLane:
-            return SemanticVehicle(vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft,
-                                             LateralBehavior.LaneChangeRight}, nearest_lane)
+            return SemanticVehicle(vehicle, [LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft,
+                                             LateralBehavior.LaneChangeRight], nearest_lane)
         elif nearest_lane.id_ == LaneId.LeftLane:
-            return SemanticVehicle(Vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeRight},
+            return SemanticVehicle(vehicle, [LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeRight],
                                    nearest_lane)
         elif nearest_lane.id_ == LaneId.RightLane:
-            return SemanticVehicle(Vehicle, {LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft}, nearest_lane)
+            return SemanticVehicle(vehicle, [LateralBehavior.LaneKeeping, LateralBehavior.LaneChangeLeft], nearest_lane)
 
     # Calculate reference lane for ego vehicle with a specified behavior
     def calculateEgoVehicleReferenceLane(self, semantic_vehicle, lateral_behavior):
@@ -352,32 +368,29 @@ class LaneServer:
 # Agent vehicle generator (without ego vehicle)
 class AgentGenerator:
     def __init__(self, lanes=None):
-        self.index_ = 1
-
         # TODO: for lane information inputting
         self.lanes_ = lanes
 
     # Generate surround agents information
-    def generateSingleAgent(self):
+    def generateSingleAgent(self, index):
         agent_length = random.uniform(4.0, 6.0)
         agent_width = random.uniform(1.8, 2.5)
         agent_velocity = random.uniform(3.0, 10.0)
         agent_acceleration = random.uniform(-1.0, 1.0)
 
         # TODO: calculate x, y position based on lanes information
-        x_position = random.uniform(0.0, 280.0)
+        x_position = random.uniform(0.0, 100.0)
         y_position = random.uniform(-3.5, 3.5)
         theta = random.uniform(-0.2, 0.2)
         agent_position = PathPoint(x_position, y_position, theta)
-        this_vehicle = Vehicle(self.index_, agent_position, agent_length, agent_width, agent_velocity,
+        this_vehicle = Vehicle(index, agent_position, agent_length, agent_width, agent_velocity,
                               agent_acceleration)
-        self.index_ += 1
         return this_vehicle
 
     def generateAgents(self, num):
         agents = {}
         for i in range(1, num + 1):
-            this_vehicle = self.generateSingleAgent()
+            this_vehicle = self.generateSingleAgent(i)
             agents[this_vehicle.id_] = this_vehicle
         return agents
 
@@ -614,7 +627,7 @@ class PolicyEvaluater:
 # IDM model
 class IDM:
     # IDM config
-    desired_velocity = 0.0 # Update with the lane information and vehicle information
+    desired_velocity = 10.0 # Update with the lane information, vehicle information and user designed
     vehicle_length = 5.0
     minimum_spacing = 2.0
     desired_headaway_time = 1.0
@@ -936,7 +949,7 @@ if __name__ == '__main__':
 
     # Generate surround agent vehicles
     # Set random seed
-    random.seed(16)
+    random.seed(190)
     agent_generator = AgentGenerator()
     surround_vehicle_set = agent_generator.generateAgents(10)
 
@@ -975,10 +988,49 @@ if __name__ == '__main__':
 
 
     # Test lane server and semantic vehicle
+    # Construct lane server and semantic vehicles
     all_vehicle = [ego_vehicle] + list(surround_vehicle_set.values())
     lanes = {center_lane.id_: center_lane, left_lane.id_: left_lane, right_lane.id_: right_lane}
     lane_server = LaneServer(lanes, all_vehicle)
-    
+
+    # # Check semantic vehicles' information in lane server
+    # for seman_veh_id, seman_veh in lane_server.semantic_vehicles_.items():
+    #     if seman_veh_id == 0:
+    #         # For ego vehicle
+    #         print('Vehicle id: {}, potential behavior: {}, nearest lane: {}'.format(seman_veh_id, seman_veh.potential_behaviors_, seman_veh.nearest_lane_.id_))
+    #     else:
+    #         # For surround vehicle
+    #         print('Vehicle id: {}, potential behavior: {}, nearest lane: {}, reference lane: {}'.format(seman_veh_id, seman_veh.potential_behaviors_, seman_veh.nearest_lane_.id_, seman_veh.reference_lane_.id_))
+
+    # Get ego vehicle's all potential behaviors and set ego vehicle's potential behavior randomly
+    ego_vehicle_all_potential_behavior = lane_server.getEgoVehicleBehaviors()
+    lane_server.setEgoVehicleBehavior(LateralBehavior.LaneKeeping)
+
+    # # Check vehicle's leading vehicle
+    # for seman_veh_id, seman_veh in lane_server.semantic_vehicles_.items():
+    #     leading_seman_veh = lane_server.getLeadingVehicle(seman_veh)
+    #     if leading_seman_veh == None:
+    #         # Without leading veh
+    #         print('Vehicle id: {}, reference lane: {}, has no leading vehicle'.format(seman_veh_id, seman_veh.reference_lane_.id_))
+    #     else:
+    #         print('Vehicle id: {}, reference lane: {}, its leading vehicle id: {}'.format(seman_veh_id, seman_veh.reference_lane_.id_, leading_seman_veh.vehicle_.id_))
+
+    # Test IDM
+    # Set parameters
+    cur_s = 20.0
+    leading_s = 30.0
+    cur_velocity = 5.0
+    leading_velocity = 10.0
+
+    # Calculate velocity and acceleration
+    idm_velocity = IDM.calculateVelocity(cur_s, leading_s, cur_velocity, leading_velocity, 0.4)
+    idm_acceleration = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity)
+
+
+    print('IDM velocity: {}'.format(idm_velocity))
+    print('IDM acceleration: {}'.format(idm_acceleration))
+
+
 
 
 
