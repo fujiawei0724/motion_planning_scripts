@@ -70,6 +70,7 @@ class Tools:
     def calculateSteer(wheelbase_length, angle_diff, look_ahead_distance):
         return np.arctan2(2.0 * wheelbase_length * np.sin(angle_diff), look_ahead_distance)
 
+    # Truncate control
     @staticmethod
     def truncate(val_in, lower, upper):
         if lower > upper:
@@ -102,6 +103,21 @@ class Tools:
         else:
             return min(proj_1[1], proj_2[1]) - max(proj_1[0], proj_2[0])
 
+# Visualization
+class Visualization:
+    @staticmethod
+    def transformPathPointsToArray(lane_path_points):
+        points_num = len(lane_path_points)
+        path_points_array = np.zeros((points_num, 2))
+
+        # Traverse and load data
+        for index, path_point in enumerate(lane_path_points):
+            path_points_array[index][0] = path_point.x_
+            path_points_array[index][1] = path_point.y_
+
+        return path_points_array
+
+
 
 # Path point class
 class PathPoint:
@@ -119,8 +135,9 @@ class PathPoint:
 class Lane:
     def __init__(self, start_point, end_point, id):
         # Generate lane path points information
-        self.id_ = LaneId(id)
-        samples = np.linspace(0.0, 1.0, 101, end_point=True)
+        self.id_ = id
+        sample_num = np.linalg.norm(np.array([end_point.x_ - start_point.x_, end_point.y_ - start_point.y_])) / 0.1
+        samples = np.linspace(0.0, 1.0, int(sample_num), endpoint=True)
         x_diff = end_point.x_ - start_point.x_
         y_diff = end_point.y_ - start_point.y_
         lane_theta = np.arctan2(end_point.y_ - start_point.y_, end_point.x_ - start_point.x_)
@@ -872,6 +889,23 @@ if __name__ == '__main__':
     # plt.axis('equal')
     # plt.show()
 
-    # Test vehicle and semantic vehicle
-    
+    # Test lane, vehicle and semantic vehicle
+    # Initialize lane
+    center_lane_start_point = PathPoint(0.0, 0.0)
+    center_lane_end_point = PathPoint(500.0, 0.0)
+    center_lane = Lane(center_lane_start_point, center_lane_end_point, LaneId.CenterLane)
+    center_lane_points_array = Visualization.transformPathPointsToArray(center_lane.path_points_)
+
+    # Initialize ego vehicle 
+
+    plt.figure(1, (12, 6))
+    plt.title('Test lane')
+    plt.plot(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='black', linewidth=1.0)
+    plt.scatter(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='red', s=1.0)
+    plt.show()
+
+
+
+
+
 
