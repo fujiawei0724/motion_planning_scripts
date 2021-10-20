@@ -130,6 +130,10 @@ class PathPoint:
     def calculateDistance(self, path_point):
         return np.linalg.norm(np.array([self.x_ - path_point.x_, self.y_ - path_point.y_]))
 
+    # Transform to array (for DEBUG)
+    def toArray(self):
+        return np.array([self.x_, self.y_])
+
 
 # Lane class
 class Lane:
@@ -209,9 +213,14 @@ class LaneServer:
     def initialize(self):
         for vehicle in self.vehicles_:
             if vehicle.id_ != 0:
+                # For surround vehicle
                 semantic_vehicle = self.calculateSurroundVehicleBehavior(vehicle)
+                if semantic_vehicle is None:
+                    # Delete surround vehicle with error behavior
+                    continue
                 self.semantic_vehicles_[semantic_vehicle.vehicle_.id_] = semantic_vehicle
             else:
+                # For ego vehicle
                 semantic_vehicle = self.calculateEgoVehicleBehavior(vehicle)
                 self.semantic_vehicles_[semantic_vehicle.vehicle_.id_] = semantic_vehicle
 
@@ -238,9 +247,9 @@ class LaneServer:
         if not self.lanes_:
             assert False
         dis_mp = {}
-        for lane in self.lanes_:
-            dis_mp[lane.id_] = lane.calculatePositionToLaneDistance(cur_position)
-        sorted_dis_mp = sorted(dis_mp.items(), key=lambda o: (o[1], o[0]))
+        for lane_id, lane in self.lanes_.items():
+            dis_mp[lane_id] = lane.calculatePositionToLaneDistance(cur_position)
+        sorted_dis_mp = sorted(dis_mp.items(), key=lambda o: o[1])
         return self.lanes_[sorted_dis_mp[0][0]]
 
     # Calculate potential behavior and reference lane for surround agents
@@ -921,7 +930,6 @@ if __name__ == '__main__':
     right_lane = Lane(right_lane_start_point, right_lane_end_point, LaneId.RightLane)
     right_lane_points_array = Visualization.transformPathPointsToArray(right_lane.path_points_)
 
-
     # Initialize ego vehicle
     ego_vehicle = Vehicle(0, PathPoint(20.0, 0.0, 0.0), 5.0, 2.0, 5.0, 0.0, 0.0)
     ego_vehicle_polygon = Polygon(ego_vehicle.rectangle_.vertex_)
@@ -932,23 +940,49 @@ if __name__ == '__main__':
     agent_generator = AgentGenerator()
     surround_vehicle_set = agent_generator.generateAgents(10)
 
-    # Calculate vehicles' distance to a specified lane
-    for sur_veh in surround_vehicle_set.values():
-        dis_to_center_lane = center_lane.calculatePositionToLaneDistance(sur_veh.position_)
-        dis_to_left_lane = left_lane.calculatePositionToLaneDistance(sur_veh.position_)
-        dis_to_right_lane = right_lane.calculatePositionToLaneDistance(sur_veh.position_)
+    # # Calculate vehicles' distance to corresponding lane
+    # for sur_veh in surround_vehicle_set.values():
+    #     dis_to_center_lane = center_lane.calculatePositionToLaneDistance(sur_veh.position_)
+    #     dis_to_left_lane = left_lane.calculatePositionToLaneDistance(sur_veh.position_)
+    #     dis_to_right_lane = right_lane.calculatePositionToLaneDistance(sur_veh.position_)
+    #
+    #     print('Vehicle id: {}, dis to center lane: {}, dis to left lane: {}, dis to right lane: {}'.format(sur_veh.id_, dis_to_center_lane, dis_to_left_lane, dis_to_right_lane))
 
-        print('Vehicle id: {}, dis to center lane: {}, dis to left lane: {}, dis to right lane: {}'.format(sur_veh.id_, dis_to_center_lane, dis_to_left_lane, dis_to_right_lane))
+    # # Calculate vehicles' nearest point index in corresponding lane
+    # for sur_veh in surround_vehicle_set.values():
+    #     nearest_point_index_in_center_lane = center_lane.calculateNearestIndexInLane(sur_veh.position_)
+    #     nearest_point_index_in_left_lane = left_lane.calculateNearestIndexInLane(sur_veh.position_)
+    #     nearest_point_index_in_right_lane = right_lane.calculateNearestIndexInLane(sur_veh.position_)
+    #
+    #     print('Vehicle id: {}, nearest point index in center lane: {}, nearest point index in left lane: {}, nearest point index in right lane: {}'.format(sur_veh.id_, nearest_point_index_in_center_lane, nearest_point_index_in_left_lane, nearest_point_index_in_right_lane))
 
+    # # Calculate vehicle's nearest point in corresponding lane
+    # for sur_veh in surround_vehicle_set.values():
+    #     nearest_point_in_center_lane = center_lane.calculateNearestPointInLane(sur_veh.position_).toArray()
+    #     nearest_point_in_left_lane = left_lane.calculateNearestPointInLane(sur_veh.position_).toArray()
+    #     nearest_point_in_right_lane = right_lane.calculateNearestPointInLane(sur_veh.position_).toArray()
+    #
+    #     print('Vehicle id: {}, nearest point in center lane: {}, nearest point in left lane: {}, nearest point in right lane: {}'.format(sur_veh.id_, nearest_point_in_center_lane, nearest_point_in_left_lane, nearest_point_in_right_lane))
+
+    # # Calculate vehicle's corresponding path point index from a position and distance
+    # for sur_veh in surround_vehicle_set.values():
+    #     target_distance = 50.0
+    #     target_index_in_center_lane = center_lane.calculateTargetDistancePoint(sur_veh.position_, target_distance)
+    #     target_index_in_left_lane = left_lane.calculateTargetDistancePoint(sur_veh.position_, target_distance)
+    #     target_index_in_right_lane = right_lane.calculateTargetDistancePoint(sur_veh.position_, target_distance)
+    #
+    #     print('Vehicle id: {}, target index in center lane: {}, target index in left lane: {}, target index in right lane: {}'.format(sur_veh.id_, target_index_in_center_lane, target_index_in_left_lane, target_index_in_right_lane))
+
+
+    # Test lane server and semantic vehicle
+    all_vehicle = [ego_vehicle] + list(surround_vehicle_set.values())
+    lanes = {center_lane.id_: center_lane, left_lane.id_: left_lane, right_lane.id_: right_lane}
+    lane_server = LaneServer(lanes, all_vehicle)
     
 
 
 
-    # Test lane server and semantic vehicle
-
-
-
-
+    # Visualization
     plt.figure(1, (12, 6))
     plt.title('Test lane, vehicle and semantic vehicle')
 
