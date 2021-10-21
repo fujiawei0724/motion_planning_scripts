@@ -638,10 +638,10 @@ class IDM:
 
     # Calculate velocity using IDM model with linear function
     @staticmethod
-    def calculateVelocity(cur_s, leading_s, cur_velocity, leading_velocity, dt):
+    def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt):
 
         # Linear predict function
-        def linearPredict(dt):
+        def linearPredict(cur_s, leading_s, cur_velocity, leading_velocity, dt):
             # Calculate responding acceleration
             acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity)
             acc = max(acc, -min(IDM.hard_braking_deceleration, cur_velocity / dt))
@@ -651,9 +651,18 @@ class IDM:
             next_leading_velocity = leading_velocity
             return next_cur_s, next_leading_s, next_cur_velocity, next_leading_velocity
 
-        _, _, target_velocity, _ = linearPredict(dt)
+        # State cache
+        predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity
 
-        return target_velocity
+        # Predict 40 step with the time gap 0.01
+        iteration_num = 40
+        for _ in range(iteration_num):
+            predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = linearPredict(predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity, dt / iteration_num)
+
+        # # Single step predict
+        # _, _, predicted_cur_velocity, _ = linearPredict(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, 0.4)
+
+        return predicted_cur_velocity
 
     # Calculate acceleration using IDM model
     @staticmethod
@@ -1032,7 +1041,7 @@ if __name__ == '__main__':
     # cur_s = 20.0
     # leading_s = 30.0
     # cur_velocity = 5.0
-    # leading_velocity = 10.0
+    # leading_velocity = 8.0
     #
     # # Calculate velocity and acceleration
     # idm_velocity = IDM.calculateVelocity(cur_s, leading_s, cur_velocity, leading_velocity, 0.4)
