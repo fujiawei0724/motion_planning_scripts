@@ -1047,8 +1047,8 @@ if __name__ == '__main__':
     #
     # # Set current state and control information
     # ideal_steer_model.setState(ego_vehicle)
-    # ideal_steer_model.setControl([-0.05, 8.0])
-    # ideal_steer_model.step(0.4)
+    # ideal_steer_model.setControl([0.05, 18.0])
+    # ideal_steer_model.step(1.0)
     #
     # # Get first predicted state
     # predicted_state = ideal_steer_model.state_
@@ -1056,12 +1056,12 @@ if __name__ == '__main__':
     #
     # # Get second predicted state
     # ideal_steer_model.setState(predicted_state)
-    # ideal_steer_model.setControl([-0.05, 8.0])
-    # ideal_steer_model.step(0.4)
+    # ideal_steer_model.setControl([0.0, 10.0])
+    # ideal_steer_model.step(1.0)
     # predicted_state_2 = ideal_steer_model.state_
     # predicted_state_polygon_2 = Polygon(predicted_state_2.rectangle_.vertex_)
-
-    # Visualization ego vehicle and predicted state
+    #
+    # # Visualization ego vehicle and predicted state
     # plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
     # plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
     #
@@ -1071,8 +1071,31 @@ if __name__ == '__main__':
     # plt.plot(*predicted_state_polygon_2.exterior.xy, c='r', ls='--')
     # plt.text(predicted_state_2.position_.x_, predicted_state_2.position_.y_, 'id: {}, v: {}'.format(predicted_state_2.id_, predicted_state_2.velocity_), size=10.0)
 
+    # # Test continuous ideal steer model
+    # # Load parameters
+    # ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration, Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
+    #
+    # # Visualization ego vehicle
+    # plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
+    # plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
+    #
+    # # Initialize state cache
+    # predicted_state = copy.deepcopy(ego_vehicle)
+    #
+    # # Predict 10 steps
+    # for step_index in range(0, 10):
+    #     ideal_steer_model.setState(predicted_state)
+    #     ideal_steer_model.setControl([0.0, 10.0])
+    #     ideal_steer_model.step(0.4)
+    #     predicted_state = ideal_steer_model.state_
+    #     predicted_state_polygon = Polygon(predicted_state.rectangle_.vertex_)
+    #
+    #     # Visualization predicted state
+    #     plt.plot(*predicted_state_polygon.exterior.xy, c='r', ls='--')
+    #     plt.text(predicted_state.position_.x_, predicted_state.position_.y_, 'id: {}, v: {}'.format(predicted_state.id_, predicted_state.velocity_), size=10.0)
+
     # Test forward extender
-    
+
 
 
 
