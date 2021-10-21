@@ -56,7 +56,7 @@ class Config:
     max_curvature_abs = 0.33
 
     # User defined velocity
-    user_desired_velocity = 5.0
+    user_desired_velocity = 8.0
 
 
 class Tools:
@@ -206,7 +206,14 @@ class Lane:
 
 # Lane set
 class LaneServer:
-    def __init__(self, lanes, vehicles):
+    def __init__(self):
+        # Initialize shell
+        self.lanes_ = None
+        self.vehicles_ = None
+        self.semantic_vehicles_ = None
+
+    def refresh(self, lanes, vehicles):
+        # Load data
         self.lanes_ = copy.deepcopy(lanes)
         self.vehicles_ = vehicles
         self.semantic_vehicles_ = {}
@@ -438,7 +445,7 @@ class ForwardExtender:
 
             for veh_id, veh in self.lane_server_.semantic_vehicles_.items():
 
-                print('For vehicle id: {}'.format(veh_id))
+                print('Predicting vehicle id: {}'.format(veh_id))
 
                 # Determine initial vehicles information
                 desired_velocity = veh.vehicle_.velocity_
@@ -584,9 +591,6 @@ class ForwardExtender:
         return predicted_state
 
 
-
-
-
 # Policy evaluate
 class PolicyEvaluater:
     def __init__(self):
@@ -608,9 +612,9 @@ class PolicyEvaluater:
     # Efficiency cost
     def calculateEfficiencyCost(self):
         # Get the last state of ego vehicle
-        ego_vehicle_last_state = self.ego_trajectory_
+        ego_vehicle_last_state = self.ego_trajectory_.vehicle_states_[-1]
         last_velocity = ego_vehicle_last_state.velocity_
-        return 1.0 / last_velocity
+        return Config.user_desired_velocity - last_velocity
 
 
     # Safety cost
@@ -932,7 +936,7 @@ class Trajectory:
             is_collision = Rectangle.isCollision(self.vehicle_states_[time_index].rectangle_, judge_trajectory.vehicle_states_[time_index].rectangle_)
             if is_collision:
                 safety_cost += 0.01 * abs(
-                    self.vehicle_states_[time_index].velocity_ - judge_trajectory[time_index].velocity_) * 0.5
+                    self.vehicle_states_[time_index].velocity_ - judge_trajectory.vehicle_states_[time_index].velocity_) * 0.5
 
         return safety_cost
 
@@ -980,7 +984,7 @@ if __name__ == '__main__':
 
     # Generate surround agent vehicles
     # Set random seed
-    random.seed(190)
+    random.seed(19000)
     agent_generator = AgentGenerator()
     surround_vehicle_set = agent_generator.generateAgents(10)
 
@@ -1022,7 +1026,8 @@ if __name__ == '__main__':
     # Construct lane server and semantic vehicles
     all_vehicle = [ego_vehicle] + list(surround_vehicle_set.values())
     lanes = {center_lane.id_: center_lane, left_lane.id_: left_lane, right_lane.id_: right_lane}
-    lane_server = LaneServer(lanes, all_vehicle)
+    lane_server = LaneServer()
+    lane_server.refresh(lanes, all_vehicle)
 
     # # Check semantic vehicles' information in lane server
     # for seman_veh_id, seman_veh in lane_server.semantic_vehicles_.items():
@@ -1115,7 +1120,7 @@ if __name__ == '__main__':
 
     # Test forward extender
     # Construct forward extender
-    forward_extender = ForwardExtender(lane_server, 0.4, 8.0)
+    forward_extender = ForwardExtender(lane_server, 0.4, 4.0)
 
     # Calculate ego trajectory and surround trajectory
     ego_trajectory, surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeLeft)
@@ -1150,24 +1155,24 @@ if __name__ == '__main__':
             # For current position
             ego_vehicle_polygon = Polygon(ego_trajectory.vehicle_states_[i].rectangle_.vertex_)
             plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
-            plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
+            # plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
             # Traverse surround vehicle
             for sur_veh_id, sur_veh_tra in surround_trajectories.items():
                 sur_vehicle_polygon = Polygon(sur_veh_tra.vehicle_states_[i].rectangle_.vertex_)
                 plt.plot(*sur_vehicle_polygon.exterior.xy, c='green')
-                plt.text(sur_veh_tra.vehicle_states_[i].position_.x_, sur_veh_tra.vehicle_states_[i].position_.y_, 'id: {}, v: {}'.format(sur_veh_id, sur_veh_tra.vehicle_states_[i].velocity_), size=10.0)
+                # plt.text(sur_veh_tra.vehicle_states_[i].position_.x_, sur_veh_tra.vehicle_states_[i].position_.y_, 'id: {}, v: {}'.format(sur_veh_id, sur_veh_tra.vehicle_states_[i].velocity_), size=10.0)
 
         else:
             # For predicted position
             # For current position
             ego_vehicle_polygon = Polygon(ego_trajectory.vehicle_states_[i].rectangle_.vertex_)
             plt.plot(*ego_vehicle_polygon.exterior.xy, c='r', ls='--')
-            plt.text(ego_trajectory.vehicle_states_[i].position_.x_, ego_trajectory.vehicle_states_[i].position_.y_, 'id: {}, v: {}, time stamp: {}'.format(ego_vehicle.id_, ego_trajectory.vehicle_states_[i].velocity_, ego_trajectory.vehicle_states_[i].time_stamp_), size=10.0)
+            # plt.text(ego_trajectory.vehicle_states_[i].position_.x_, ego_trajectory.vehicle_states_[i].position_.y_, 'id: {}, v: {}, time stamp: {}'.format(ego_vehicle.id_, ego_trajectory.vehicle_states_[i].velocity_, ego_trajectory.vehicle_states_[i].time_stamp_), size=10.0)
             # Traverse surround vehicle
             for sur_veh_id, sur_veh_tra in surround_trajectories.items():
                 sur_vehicle_polygon = Polygon(sur_veh_tra.vehicle_states_[i].rectangle_.vertex_)
                 plt.plot(*sur_vehicle_polygon.exterior.xy, c='green', ls='--')
-                plt.text(sur_veh_tra.vehicle_states_[i].position_.x_, sur_veh_tra.vehicle_states_[i].position_.y_, 'id: {}, v: {}, time stamp: {}'.format(sur_veh_id, sur_veh_tra.vehicle_states_[i].velocity_, sur_veh_tra.vehicle_states_[i].time_stamp_), size=10.0)
+                # plt.text(sur_veh_tra.vehicle_states_[i].position_.x_, sur_veh_tra.vehicle_states_[i].position_.y_, 'id: {}, v: {}, time stamp: {}'.format(sur_veh_id, sur_veh_tra.vehicle_states_[i].velocity_, sur_veh_tra.vehicle_states_[i].time_stamp_), size=10.0)
 
     plt.axis('equal')
     plt.show()
