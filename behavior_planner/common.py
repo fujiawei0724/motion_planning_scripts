@@ -38,6 +38,7 @@ class LaneId(Enum):
 
 class Config:
     BigEPS = 1e-1
+    EPS = 1e-7
     look_ahead_min_distance = 3.0
     look_ahead_max_distance = 50.0
     steer_control_gain = 1.5
@@ -54,6 +55,8 @@ class Config:
     max_steer_rate = 0.39
     max_curvature_abs = 0.33
 
+    # User defined velocity
+    user_desired_velocity = 5.0
 
 
 class Tools:
@@ -198,7 +201,7 @@ class Lane:
             if self.path_points_[cur_position_index].calculateDistance(self.path_points_[lane_point_index]) >= distance:
                 target_position_index = lane_point_index
                 break
-        return target_position_index
+        return self.path_points_[target_position_index]
 
 
 # Lane set
@@ -227,7 +230,6 @@ class LaneServer:
 
     # Set ego vehicle potential behavior
     def setEgoVehicleBehavior(self, potential_behavior):
-        assert potential_behavior in self.semantic_vehicles_[0].potential_behaviors_
         self.semantic_vehicles_[0].potential_behaviors_ = potential_behavior
         self.calculateEgoVehicleReferenceLane(self.semantic_vehicles_[0], potential_behavior)
 
@@ -235,11 +237,13 @@ class LaneServer:
     def update(self, vehicle_set, ego_potential_behavior):
         # Update vehicle information
         self.vehicles_.clear()
-        self.semantic_vehicles_.clear()
-        self.vehicles_ = vehicle_set
+        self.vehicles_ = list(vehicle_set.values())
 
-        # Reinitialize
-        self.initialize()
+        # Update semantic vehicle information
+        for sem_veh_id in self.semantic_vehicles_.keys():
+            self.semantic_vehicles_[sem_veh_id].vehicle_ = vehicle_set[sem_veh_id]
+
+        # Reset ego behavior for DCP tree
         self.setEgoVehicleBehavior(ego_potential_behavior)
 
 
@@ -384,7 +388,7 @@ class AgentGenerator:
         theta = random.uniform(-0.2, 0.2)
         agent_position = PathPoint(x_position, y_position, theta)
         this_vehicle = Vehicle(index, agent_position, agent_length, agent_width, agent_velocity,
-                              agent_acceleration)
+                              agent_acceleration, 0.0)
         return this_vehicle
 
     def generateAgents(self, num):
@@ -398,10 +402,8 @@ class AgentGenerator:
 # Forward simulation
 class ForwardExtender:
 
-    def __init__(self, ego_vehicle, surround_agents, lane_server, dt, predict_time_span):
+    def __init__(self, lane_server, dt, predict_time_span):
         # Information cache
-        self.ego_vehicle_ = copy.deepcopy(ego_vehicle)
-        self.surround_agents_ = copy.deepcopy(surround_agents)
         self.lane_server_ = copy.deepcopy(lane_server)
         self.dt_ = dt
         self.predict_time_span_ = predict_time_span
@@ -416,28 +418,34 @@ class ForwardExtender:
         # Initialize current vehicle states and surround vehicle states in different time stamp
         ego_tra = []
         surround_tras = defaultdict(list)
-        ego_tra.append(self.lane_server_.semantic_vehicles_[ego_vehicle_id])
+        ego_tra.append(self.lane_server_.semantic_vehicles_[ego_vehicle_id].vehicle_)
         for this_vehicle_id, this_vehicle in self.lane_server_.semantic_vehicles_.items():
             if this_vehicle_id == ego_vehicle_id:
                 continue
             else:
-                surround_tras[this_vehicle_id].append(this_vehicle)
+                surround_tras[this_vehicle_id].append(this_vehicle.vehicle_)
 
         # Determine number of forward update
-        num_steps_forward = self.predict_time_span_ // self.dt_
+        num_steps_forward = int(self.predict_time_span_ / self.dt_)
 
         # Start forward simulation
         for step_index in range(0, num_steps_forward):
+
+            print('Start No. {} prediction epoch'.format(step_index + 1))
+
             # Initialize cache
             states_cache = {}
 
             for veh_id, veh in self.lane_server_.semantic_vehicles_.items():
+
+                print('For vehicle id: {}'.format(veh_id))
+
                 # Determine initial vehicles information
                 desired_velocity = veh.vehicle_.velocity_
                 init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
                     # TODO: determine ego vehicle desired velocity
-                    pass
+                    desired_velocity = Config.user_desired_velocity
 
                 # # Determine other vehicle set
                 # other_vehicle_set = {}
@@ -447,13 +455,15 @@ class ForwardExtender:
                 #     other_vehicle_set[veh_other_id] = v_other
 
                 # TODO: set vehicles speed limits from reference lane speed limit
-                desired_veh_state = self.forwardOnce(ego_potential_behavior, veh.vehicle_)
+                desired_veh_state = self.forwardOnce(ego_potential_behavior, veh.vehicle_, desired_velocity)
 
                 # Cache
                 states_cache[desired_veh_state.id_] = desired_veh_state
 
+
             # Update information and lane server
-            self.lane_server_.update(list(states_cache.values()), ego_potential_behavior)
+            self.lane_server_.update(states_cache, ego_potential_behavior)
+
 
             # Store trajectories
             for vehicle_id, state in states_cache.items():
@@ -477,9 +487,9 @@ class ForwardExtender:
         pass
 
     # Forward once from current state
-    def forwardOnce(self, ego_potential_behavior, cur_vehicle_state):
+    def forwardOnce(self, ego_potential_behavior, cur_vehicle_state, desired_velocity):
         # Load ego potential behavior
-        self.lane_server_.setEgoBehavior(ego_potential_behavior)
+        self.lane_server_.setEgoVehicleBehavior(ego_potential_behavior)
 
         # Load current semantic vehicle
         cur_semantic_vehicle = self.lane_server_.semantic_vehicles_[cur_vehicle_state.id_]
@@ -488,7 +498,7 @@ class ForwardExtender:
         steer = self.calculateSteer(cur_semantic_vehicle)
 
         # Calculate velocity
-        velocity = self.calculateVelocity(cur_semantic_vehicle, self.dt_)
+        velocity = self.calculateVelocity(cur_semantic_vehicle, self.dt_, desired_velocity)
 
         # Calculate desired state
         desired_vehicle_state = self.calculateDesiredState(cur_semantic_vehicle, steer, velocity, self.dt_)
@@ -527,7 +537,7 @@ class ForwardExtender:
         return target_steer
 
     # Calculate velocity
-    def calculateVelocity(self, ego_semantic_vehicle, dt):
+    def calculateVelocity(self, ego_semantic_vehicle, dt, desired_velocity):
         # Calculate leading vehicle
         leading_semantic_vehicle = self.lane_server_.getLeadingVehicle(ego_semantic_vehicle)
 
@@ -537,7 +547,7 @@ class ForwardExtender:
             virtual_leading_vehicle_distance = 100.0 + 100.0 * ego_semantic_vehicle.vehicle_.velocity_
             target_velocity = IDM.calculateVelocity(0.0, virtual_leading_vehicle_distance,
                                                     ego_semantic_vehicle.vehicle_.velocity_,
-                                                    ego_semantic_vehicle.vehicle_.velocity_, dt)
+                                                    ego_semantic_vehicle.vehicle_.velocity_, dt, desired_velocity)
         else:
             # With leading vehicle
             # Calculate ego vehicle and leading vehicle's nearest position in corresponding lane respectively
@@ -549,11 +559,11 @@ class ForwardExtender:
                 leading_semantic_vehicle.vehicle_.position_)
 
             # Calculate the distance between ego vehicle and ego vehicle
-            ego_leading_vehicles_diatance = ego_vehicle_position_in_corresponding_lane.calculateDistance(
+            ego_leading_vehicles_distance = ego_vehicle_position_in_corresponding_lane.calculateDistance(
                 leading_vehicle_position_in_corresponding_lane)
-            target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_diatance,
+            target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_distance,
                                                     ego_semantic_vehicle.vehicle_.velocity_,
-                                                    leading_semantic_vehicle.vehicle_.velocity_, dt)
+                                                    leading_semantic_vehicle.vehicle_.velocity_, dt, desired_velocity)
 
         return target_velocity
 
@@ -627,7 +637,7 @@ class PolicyEvaluater:
 # TODO: parameters need to adjust the situation
 class IDM:
     # IDM config
-    desired_velocity = 10.0 # Update with the lane information, vehicle information and user designed
+    # desired_velocity = 10.0 # Update with the lane information, vehicle information and user designed
     vehicle_length = 5.0
     minimum_spacing = 2.0
     desired_headaway_time = 1.0
@@ -638,12 +648,12 @@ class IDM:
 
     # Calculate velocity using IDM model with linear function
     @staticmethod
-    def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt):
+    def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt, desired_velocity):
 
         # Linear predict function
         def linearPredict(cur_s, leading_s, cur_velocity, leading_velocity, dt):
             # Calculate responding acceleration
-            acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity)
+            acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity)
             acc = max(acc, -min(IDM.hard_braking_deceleration, cur_velocity / dt))
             next_cur_s = cur_s + cur_velocity * dt + 0.5 * acc * dt * dt
             next_leading_s = leading_s + leading_velocity * dt
@@ -666,21 +676,21 @@ class IDM:
 
     # Calculate acceleration using IDM model
     @staticmethod
-    def calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity):
+    def calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity):
         # Calculate parameters
-        a_free = IDM.acceleration * (1 - pow(cur_velocity / IDM.desired_velocity,
-                                             IDM.exponent)) if cur_velocity <= IDM.desired_velocity else -IDM.comfortable_braking_deceleration * (
-                    1 - pow(IDM.desired_velocity / cur_velocity,
+        a_free = IDM.acceleration * (1 - pow(cur_velocity / desired_velocity,
+                                             IDM.exponent)) if cur_velocity <= desired_velocity else -IDM.comfortable_braking_deceleration * (
+                    1 - pow(desired_velocity / cur_velocity,
                             IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
-        s_alpha = max(0.0, leading_s - cur_s - IDM.vehicle_length)
+        s_alpha = max(0.0 + Config.EPS, leading_s - cur_s - IDM.vehicle_length)
         z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (
                     cur_velocity - leading_velocity) / (2.0 * np.sqrt(
             IDM.acceleration * IDM.comfortable_braking_deceleration)))) / s_alpha
 
         # Calculate output acceleration
-        if cur_velocity <= IDM.desired_velocity:
+        if cur_velocity <= desired_velocity:
             a_out = IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free * (
-                        1 - pow(z, 2.0 * IDM.acceleration / a_free))
+                        1 - pow(z, 2.0 * IDM.acceleration / (a_free + Config.EPS)))
         else:
             a_out = a_free + IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free
         a_out = max(min(IDM.acceleration, a_out), -IDM.hard_braking_deceleration)
@@ -781,7 +791,7 @@ class IdealSteerModel:
         # self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
         # self.state_.acceleration_ = self.desired_lon_acc_
 
-        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_, predict_state[3], self.desired_lon_acc_, np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_, Tools.normalizeAngle(predict_state[4]))
+        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_, predict_state[3], self.desired_lon_acc_, None, np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_, Tools.normalizeAngle(predict_state[4]))
 
 
         self.updateInternalState()
@@ -1025,7 +1035,7 @@ if __name__ == '__main__':
 
     # Get ego vehicle's all potential behaviors and set ego vehicle's potential behavior randomly
     ego_vehicle_all_potential_behavior = lane_server.getEgoVehicleBehaviors()
-    lane_server.setEgoVehicleBehavior(LateralBehavior.LaneKeeping)
+    # lane_server.setEgoVehicleBehavior(LateralBehavior.LaneKeeping)
 
     # # Check vehicle's leading vehicle
     # for seman_veh_id, seman_veh in lane_server.semantic_vehicles_.items():
@@ -1104,11 +1114,11 @@ if __name__ == '__main__':
     #     plt.text(predicted_state.position_.x_, predicted_state.position_.y_, 'id: {}, v: {}'.format(predicted_state.id_, predicted_state.velocity_), size=10.0)
 
     # Test forward extender
+    # Construct forward extender
+    forward_extender = ForwardExtender(lane_server, 0.4, 8.0)
 
-
-
-
-
+    # Calculate ego trajectory and surround trajectory
+    ego_trajectory, surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeLeft)
 
 
     # Visualization
@@ -1133,6 +1143,31 @@ if __name__ == '__main__':
     #     surround_vehicle_polygon = Polygon(surround_vehicle.rectangle_.vertex_)
     #     plt.plot(*surround_vehicle_polygon.exterior.xy, c='green')
     #     plt.text(surround_vehicle.position_.x_, surround_vehicle.position_.y_, 'id: {}, v: {}'.format(surround_vehicle.id_, surround_vehicle.velocity_), size=10.0)
+
+    # Visualization vehicle and trajectories
+    for i in range(0, len(ego_trajectory.vehicle_states_)):
+        if i == 0:
+            # For current position
+            ego_vehicle_polygon = Polygon(ego_trajectory.vehicle_states_[i].rectangle_.vertex_)
+            plt.plot(*ego_vehicle_polygon.exterior.xy, c='r')
+            plt.text(ego_vehicle.position_.x_, ego_vehicle.position_.y_, 'id: {}, v: {}'.format(ego_vehicle.id_, ego_vehicle.velocity_), size=10.0)
+            # Traverse surround vehicle
+            for sur_veh_id, sur_veh_tra in surround_trajectories.items():
+                sur_vehicle_polygon = Polygon(sur_veh_tra.vehicle_states_[i].rectangle_.vertex_)
+                plt.plot(*sur_vehicle_polygon.exterior.xy, c='green')
+                plt.text(sur_veh_tra.vehicle_states_[i].position_.x_, sur_veh_tra.vehicle_states_[i].position_.y_, 'id: {}, v: {}'.format(sur_veh_id, sur_veh_tra.vehicle_states_[i].velocity_), size=10.0)
+
+        else:
+            # For predicted position
+            # For current position
+            ego_vehicle_polygon = Polygon(ego_trajectory.vehicle_states_[i].rectangle_.vertex_)
+            plt.plot(*ego_vehicle_polygon.exterior.xy, c='r', ls='--')
+            plt.text(ego_trajectory.vehicle_states_[i].position_.x_, ego_trajectory.vehicle_states_[i].position_.y_, 'id: {}, v: {}, time stamp: {}'.format(ego_vehicle.id_, ego_trajectory.vehicle_states_[i].velocity_, ego_trajectory.vehicle_states_[i].time_stamp_), size=10.0)
+            # Traverse surround vehicle
+            for sur_veh_id, sur_veh_tra in surround_trajectories.items():
+                sur_vehicle_polygon = Polygon(sur_veh_tra.vehicle_states_[i].rectangle_.vertex_)
+                plt.plot(*sur_vehicle_polygon.exterior.xy, c='green', ls='--')
+                plt.text(sur_veh_tra.vehicle_states_[i].position_.x_, sur_veh_tra.vehicle_states_[i].position_.y_, 'id: {}, v: {}, time stamp: {}'.format(sur_veh_id, sur_veh_tra.vehicle_states_[i].velocity_, sur_veh_tra.vehicle_states_[i].time_stamp_), size=10.0)
 
     plt.axis('equal')
     plt.show()
