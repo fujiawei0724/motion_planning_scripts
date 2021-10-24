@@ -984,9 +984,9 @@ if __name__ == '__main__':
 
     # Generate surround agent vehicles
     # Set random seed
-    random.seed(19000)
+    random.seed(190000)
     agent_generator = AgentGenerator()
-    surround_vehicle_set = agent_generator.generateAgents(10)
+    surround_vehicle_set = agent_generator.generateAgents(0)
 
     # # Calculate vehicles' distance to corresponding lane
     # for sur_veh in surround_vehicle_set.values():
@@ -1123,7 +1123,7 @@ if __name__ == '__main__':
     forward_extender = ForwardExtender(lane_server, 0.4, 4.0)
 
     # Calculate ego trajectory and surround trajectory
-    ego_trajectory, surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeLeft)
+    ego_trajectory, surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeRight)
 
 
     # Visualization
