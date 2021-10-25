@@ -3,3 +3,8 @@
 # @Author : fujiawei0724
 # @File : EUDM.py
 # @Software: PyCharm
+
+"""
+This code contains the EUDM behavior planner.
+"""
+

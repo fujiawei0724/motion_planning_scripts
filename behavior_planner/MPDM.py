@@ -1,11 +1,11 @@
 # -- coding: utf-8 --
 # @Time : 2021/10/12 下午7:35
 # @Author : fujiawei0724
-# @File : decisionMaking.py
+# @File : MPDM.py
 # @Software: PyCharm
 
 """
-This code includes a single simulation for behavior planner.
+This code includes a single simulation for behavior planner (MPDM).
 """
 import copy
 

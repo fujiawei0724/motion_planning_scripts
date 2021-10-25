@@ -541,6 +541,8 @@ class ForwardExtender:
         # Calculate target steer
         target_steer = Tools.calculateSteer(Config.wheelbase_length, diff_angle, look_ahead_distance_world)
 
+        print('Target steer: {}'.format(target_steer))
+
         return target_steer
 
     # Calculate velocity
@@ -795,7 +797,7 @@ class IdealSteerModel:
         # self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
         # self.state_.acceleration_ = self.desired_lon_acc_
 
-        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_, predict_state[3], self.desired_lon_acc_, None, np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_, Tools.normalizeAngle(predict_state[4]))
+        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_, predict_state[3], self.desired_lon_acc_, None, np.tan(predict_state[4]) * 1.0 / self.wheelbase_len_, Tools.normalizeAngle(predict_state[4]))
 
 
         self.updateInternalState()
@@ -1120,7 +1122,7 @@ if __name__ == '__main__':
 
     # Test forward extender
     # Construct forward extender
-    forward_extender = ForwardExtender(lane_server, 0.4, 4.0)
+    forward_extender = ForwardExtender(lane_server, 0.4, 6.0)
 
     # Calculate ego trajectory and surround trajectory
     ego_trajectory, surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeRight)
