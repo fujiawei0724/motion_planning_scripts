@@ -541,8 +541,6 @@ class ForwardExtender:
         # Calculate target steer
         target_steer = Tools.calculateSteer(Config.wheelbase_length, diff_angle, look_ahead_distance_world)
 
-        print('Target steer: {}'.format(target_steer))
-
         return target_steer
 
     # Calculate velocity
@@ -684,9 +682,9 @@ class IDM:
     @staticmethod
     def calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity):
         # Calculate parameters
-        a_free = IDM.acceleration * (1 - pow(cur_velocity / desired_velocity,
+        a_free = IDM.acceleration * (1 - pow(cur_velocity / (desired_velocity + Config.EPS),
                                              IDM.exponent)) if cur_velocity <= desired_velocity else -IDM.comfortable_braking_deceleration * (
-                    1 - pow(desired_velocity / cur_velocity,
+                    1 - pow(desired_velocity / (cur_velocity + Config.EPS),
                             IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
         s_alpha = max(0.0 + Config.EPS, leading_s - cur_s - IDM.vehicle_length)
         z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (
@@ -902,7 +900,6 @@ class Vehicle:
         self.velocity_ = velocity
         self.acceleration_ = acceleration
         self.time_stamp_ = time_stamp
-        # TODO: add curvature and steer information
         self.curvature_ = curvature
         self.steer_ = steer
 
