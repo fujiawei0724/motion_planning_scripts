@@ -687,7 +687,7 @@ class ForwardExtender:
                 if veh_id == ego_vehicle_id:
                     # TODO: determine ego vehicle desired velocity with different longitudinal behavior
                     if longitudinal_behavior == LongitudinalBehavior.Conservative:
-                        desired_velocity -= 5.0
+                        desired_velocity = max(0.0, desired_velocity - 5.0)
                     elif longitudinal_behavior == LongitudinalBehavior.Normal:
                         desired_velocity += 0.0
                     elif longitudinal_behavior == LongitudinalBehavior.Aggressive:
