@@ -27,7 +27,6 @@ class LateralBehavior(Enum):
     LaneChangeLeft = 1
     LaneChangeRight = 2
 
-
 # Define lane id
 @unique
 class LaneId(Enum):
