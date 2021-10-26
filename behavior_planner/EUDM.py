@@ -74,26 +74,7 @@ if __name__ == '__main__':
     #     lane_change_right_ego_trajectory, lane_change_right_surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeRight)
 
     # Calculate cost for each policy
-    # Construct policy evaluator
-    policy_evaluator = PolicyEvaluater()
-
-    # Calculate lane keeping cost
-    policy_evaluator.loadData(LateralBehavior.LaneKeeping, behavior_sequence_ego_trajectory,
-                              behavior_sequence_surround_trajectories)
-    behavior_sequence_cost = policy_evaluator.calculateCost()
-    print('Behavior sequence cost: {}'.format(behavior_sequence_cost))
-
-    # # Calculate lane change left cost
-    # if LateralBehavior.LaneChangeLeft in ego_vehicle_all_potential_behavior:
-    #     policy_evaluator.loadData(LateralBehavior.LaneChangeLeft, lane_change_left_ego_trajectory, lane_change_left_surround_trajectories)
-    #     lane_change_left_cost = policy_evaluator.calculateCost()
-    #     print('Lane change left cost: {}'.format(lane_change_left_cost))
-    #
-    # # Calculate lane change right cost
-    # if LateralBehavior.LaneChangeRight in ego_vehicle_all_potential_behavior:
-    #     policy_evaluator.loadData(LateralBehavior.LaneChangeRight, lane_change_right_ego_trajectory, lane_change_right_surround_trajectories)
-    #     lane_change_right_cost = policy_evaluator.calculateCost()
-    #     print('Lane change right cost: {}'.format(lane_change_right_cost))
+    # TODO: add cost calculation for EUDM
 
     # Visualization initialization
     plt.figure(1, (12, 6))
@@ -106,20 +87,14 @@ if __name__ == '__main__':
 
         # Visualization lane
         plt.plot(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='m', linewidth=1.0)
-        plt.plot(center_lane.left_boundary_points_[:, 0], center_lane.left_boundary_points_[:, 1], c='black', ls='--',
-                 linewidth=1.0)
-        plt.plot(center_lane.right_boundary_points_[:, 0], center_lane.right_boundary_points_[:, 1], c='black', ls='--',
-                 linewidth=1.0)
+        plt.plot(center_lane.left_boundary_points_[:, 0], center_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+        plt.plot(center_lane.right_boundary_points_[:, 0], center_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
         plt.plot(left_lane_points_array[:, 0], left_lane_points_array[:, 1], c='m', linewidth=1.0)
-        plt.plot(left_lane.left_boundary_points_[:, 0], left_lane.left_boundary_points_[:, 1], c='black', ls='--',
-                 linewidth=1.0)
-        plt.plot(left_lane.right_boundary_points_[:, 0], left_lane.right_boundary_points_[:, 1], c='black', ls='--',
-                 linewidth=1.0)
+        plt.plot(left_lane.left_boundary_points_[:, 0], left_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+        plt.plot(left_lane.right_boundary_points_[:, 0], left_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
         plt.plot(right_lane_points_array[:, 0], right_lane_points_array[:, 1], c='m', linewidth=1.0)
-        plt.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--',
-                 linewidth=1.0)
-        plt.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black', ls='--',
-                 linewidth=1.0)
+        plt.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+        plt.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
         if i == 0:
             # For current position
             ego_vehicle_polygon = Polygon(behavior_sequence_ego_trajectory.vehicle_states_[i].rectangle_.vertex_)
