@@ -920,52 +920,7 @@ class IDM:
 
         return a_out
 
-# Policy evaluate
-class PolicyEvaluater:
-    def __init__(self):
-        # Initialize shell
-        self.ego_potential_behavior_ = None
-        self.ego_trajectory_ = None
-        self.surround_trajectories_ = None
-
-    # Load ego trajectory and surround trajectories
-    def loadData(self, ego_potential_behavior, ego_trajectory, surround_trajectories):
-        self.ego_potential_behavior_ = ego_potential_behavior
-        self.ego_trajectory_ = ego_trajectory
-        self.surround_trajectories_ = list(surround_trajectories.values())
-
-    # Accumulate all the components of cost function
-    def calculateCost(self):
-        return self.calculateEfficiencyCost() + self.calculateSafetyCost() + self.calculateActionCost()
-
-    # Efficiency cost
-    # TODO: adjust efficiency for different longitudinal behavior
-    def calculateEfficiencyCost(self):
-        # Get the last state of ego vehicle
-        ego_vehicle_last_state = self.ego_trajectory_.vehicle_states_[-1]
-        last_velocity = ego_vehicle_last_state.velocity_
-        return Config.user_desired_velocity - last_velocity
-
-
-    # Safety cost
-    def calculateSafetyCost(self):
-        # Initialize
-        safety_cost = 0.0
-
-        # Traverse trajectory
-        ego_vehicle_tra = self.ego_trajectory_
-        for ego_vehicle_tra in self.surround_trajectories_:
-            safety_cost += ego_vehicle_tra.calculateSafetyCost(ego_vehicle_tra)
-
-        return safety_cost
-
-
-    # Action cost
-    def calculateActionCost(self):
-        if self.ego_potential_behavior_ == LateralBehavior.LaneKeeping:
-            return 0.0
-        else:
-            return 0.5
+# TODO: add a policy evaluator for EUDM
 
 # Agent vehicle generator (without ego vehicle)
 class AgentGenerator:
