@@ -539,7 +539,7 @@ class IdealSteerModel:
         self.max_lon_acc_ = max_lon_acc
         self.max_lon_dec_ = max_lon_dec
         self.max_lon_acc_jerk_ = max_lon_acc_jerk
-        self.max_lon_dec_jerk = max_lon_dec_jerk
+        self.max_lon_dec_jerk_ = max_lon_dec_jerk
         self.max_lat_acc_ = max_lat_acc
         self.max_lat_jerk_ = max_lat_jerk
         self.max_steering_angle_ = max_steering_angle
@@ -567,7 +567,7 @@ class IdealSteerModel:
     def truncateControl(self, dt):
         self.desired_lon_acc_ = (self.control_[1] - self.state_.velocity_) / dt
         desired_lon_jerk = (self.desired_lon_acc_ - self.state_.acceleration_) / dt
-        desired_lon_jerk = Tools.truncate(desired_lon_jerk, -self.max_lon_dec_jerk, self.max_lon_acc_jerk_)
+        desired_lon_jerk = Tools.truncate(desired_lon_jerk, -self.max_lon_dec_jerk_, self.max_lon_acc_jerk_)
         self.desired_lon_acc_ = desired_lon_jerk * dt + self.state_.acceleration_
         self.desired_lon_acc_ = Tools.truncate(self.desired_lon_acc_, -self.max_lon_dec_, self.max_lon_acc_)
         self.control_[1] = max(self.state_.velocity_ + self.desired_lon_acc_ * dt, 0.0)
