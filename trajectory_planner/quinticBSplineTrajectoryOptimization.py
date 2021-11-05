@@ -83,6 +83,9 @@ if __name__ == '__main__':
     optimized_trajectory_scatter_points = quintic_b_spline_optimizer.generateOptimizedControlPoints()
     optimized_trajectory = quintic_b_spline_optimizer.generateOptimizedInterpolatedTrajectory()
 
+    # DEBUG
+    print('optimized scatter point: {}'.format(optimized_trajectory_scatter_points))
+
     # Visualization
     fig = plt.figure()
     ax_1 = Axes3D(fig)
