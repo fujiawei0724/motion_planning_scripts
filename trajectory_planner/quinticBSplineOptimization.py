@@ -90,13 +90,13 @@ class OptimizationTools:
 
         # Start point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
         A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[6] = 1.0
-        A[7][0], A[7][1], A[7][2], A[7][3], A[7][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
-        b[7] = 0.0
+        b[6] = 5.0
+        # A[7][0], A[7][1], A[7][2], A[7][3], A[7][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        # b[7] = 0.0
 
         # # End point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
-        # A[8][points_num - 5], A[8][points_num - 4], A[8][points_num - 2], A[8][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        # b[8] = 5.0
+        A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 2], A[7][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[7] = 5.0
         # A[9][points_num - 5], A[9][points_num - 4], A[9][points_num - 3], A[9][points_num - 2], A[9][points_num - 1] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
         # b[9] = 1.0
 
@@ -150,9 +150,9 @@ if __name__ == '__main__':
     path_scatters = np.array([[0.0, 0.0],
                               [1.0, 5.0],
                               [2.0, 6.0],
-                              # [3.0, 15.0],
-                              # [4.0, 10.0],
-                              # [5.0, 15.0],
+                              [3.0, 15.0],
+                              [4.0, 10.0],
+                              [5.0, 15.0],
                               [6.0, 8.0],
                               [7.0, 10.0],
                               [8.0, 12.0],
@@ -180,6 +180,7 @@ if __name__ == '__main__':
     plt.plot(optimized_quintic_B_spline_path[:, 0], optimized_quintic_B_spline_path[:, 1], c='g', linewidth=1.0, label='Optimized path')
     plt.scatter(optimized_control_points[:, 0], optimized_control_points[:, 1], c='g', s=5.0, label='Optimized control points')
     plt.legend()
+    # plt.axis('equal')
     plt.show()
 
 

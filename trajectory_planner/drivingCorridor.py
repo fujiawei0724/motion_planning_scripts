@@ -1,7 +1,7 @@
 # -- coding: utf-8 --
 # @Time : 2021/11/4 下午5:31
 # @Author : fujiawei0724
-# @File : DrivingCorridor.py
+# @File : drivingCorridor.py
 # @Software: PyCharm
 
 """
@@ -16,12 +16,12 @@ from shapely.geometry import Polygon
 class Cube:
     def __init__(self, x_start, x_end, y_start, y_end, z_start, z_end):
         assert x_end > x_start and y_end > y_start and z_end > z_start
-        self.x_start_ = x_start
-        self.x_end_ = x_end
-        self.y_start_ = y_start
-        self.y_end_ = y_end
-        self.z_start_ = z_start
-        self.z_end_ = z_end
+        self.s_start_ = x_start
+        self.s_end_ = x_end
+        self.d_start_ = y_start
+        self.d_end_ = y_end
+        self.t_start_ = z_start
+        self.t_end_ = z_end
 
 class Tools:
     @staticmethod
@@ -31,12 +31,12 @@ class Tools:
         z_range = [float('inf'), -float('inf')]
         for cube in cubes:
             assert isinstance(cube, Cube)
-            x_range[0] = min(cube.x_start_, x_range[0])
-            x_range[1] = max(cube.x_end_, x_range[1])
-            y_range[0] = min(cube.y_start_, y_range[0])
-            y_range[1] = max(cube.y_end_, y_range[1])
-            z_range[0] = min(cube.z_start_, z_range[0])
-            z_range[1] = max(cube.z_end_, z_range[1])
+            x_range[0] = min(cube.s_start_, x_range[0])
+            x_range[1] = max(cube.s_end_, x_range[1])
+            y_range[0] = min(cube.d_start_, y_range[0])
+            y_range[1] = max(cube.d_end_, y_range[1])
+            z_range[0] = min(cube.t_start_, z_range[0])
+            z_range[1] = max(cube.t_end_, z_range[1])
         return x_range, y_range, z_range
 
 
@@ -44,7 +44,7 @@ class Tools:
 class Visualization:
     @staticmethod
     def visualizationCube(cube: Cube, ax, color='red'):
-        x, dx, y, dy, z, dz = cube.x_start_, cube.x_end_ - cube.x_start_, cube.y_start_, cube.y_end_ - cube.y_start_, cube.z_start_, cube.z_end_ - cube.z_start_
+        x, dx, y, dy, z, dz = cube.s_start_, cube.s_end_ - cube.s_start_, cube.d_start_, cube.d_end_ - cube.d_start_, cube.t_start_, cube.t_end_ - cube.t_start_
         assert isinstance(ax, Axes3D)
         xx = [x, x, x + dx, x + dx, x]
         yy = [y, y + dy, y + dy, y, y]
