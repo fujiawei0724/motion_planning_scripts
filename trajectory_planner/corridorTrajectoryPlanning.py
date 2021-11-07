@@ -438,21 +438,6 @@ if __name__ == '__main__':
     ax.set_xlabel('s')
     ax.set_box_aspect(aspect=(x_range[1]-x_range[0], y_range[1]-y_range[0], z_range[1]-z_range[0]))
 
-    # # Visualization s-t
-    # plt.figure(1)
-    # plt.title('s-t')
-    # plt.plot(trajectory[:, 2], trajectory[:, 0], linewidth=1.0, c='r')
-    # plt.xlabel('t')
-    # plt.ylabel('s')
-    #
-    # # Visualization d_s-t
-    # d_s_t, d_s_velocity = Utils.calculateVelocity(trajectory[:, 2], trajectory[:, 0])
-    # plt.figure(2)
-    # plt.title('d_s-t')
-    # plt.plot(d_s_t, d_s_velocity, linewidth=1.0, c='r')
-    # plt.xlabel('t')
-    # plt.ylabel('d_s')
-
     # Visualization information
     info_fig = plt.figure(1, (12, 12))
     ax_1 = info_fig.add_subplot(221)
