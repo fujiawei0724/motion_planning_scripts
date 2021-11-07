@@ -9,6 +9,7 @@ This code contains the trajectory planning method in the constraints of corridor
 """
 
 import numpy as np
+np.set_printoptions(threshold=float('inf'))
 import matplotlib.pyplot as plt
 import copy
 from cvxopt import solvers, matrix
@@ -75,6 +76,9 @@ class UnequalConstraint:
             return np.array([self.d_start_, self.d_end_])
         else:
             assert False
+
+    def print(self):
+        print('s start: {}, s end: {}, d start: {}, d end: {}'.format(self.s_start_, self.s_end_, self.d_start_, self.d_end_))
 
 
 class UnequalConstraintSequence:
@@ -221,10 +225,12 @@ class CvxoptInterface:
         b[4], b[5] = self.start_constraint_[0], self.end_constraint_[0]
 
         # Start point and end point velocity constraint conditions
+        start_segment_time_span = OptimizationTools.calculateTimeSpan(self.all_ref_stamps_[:6])
         A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[6] = self.start_constraint_[1]
+        b[6] = self.start_constraint_[1] * start_segment_time_span
+        end_segment_time_span = OptimizationTools.calculateTimeSpan(self.all_ref_stamps_[points_num-6:points_num])
         A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 2], A[7][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[7] = self.end_constraint_[1]
+        b[7] = self.end_constraint_[1] * end_segment_time_span
 
         # TODO: for quintic B-spline, the acceleration of the start point and point must be set to zero, add an algorithm to handle this problem.
 
@@ -248,6 +254,9 @@ class CvxoptInterface:
             h[i*2] = unequal_constraint[1]
             G[i*2+1][i+3] = -1
             h[i*2+1] = -unequal_constraint[0]
+
+        # print('G: {}'.format(G))
+        # print('h: {}'.format(h))
 
         return matrix(G), matrix(h)
 
@@ -329,6 +338,7 @@ class BSplineOptimizer:
             first_index = max(i - 5, 0)
             s_up, s_low, d_up, d_low = [], [], [], []
             for j in range(first_index, i + 1):
+                assert self.semantic_cubes_[j].t_start_ <= ref_stamp <= self.semantic_cubes_[j].t_end_
                 s_up.append(self.semantic_cubes_[j].s_end_)
                 s_low.append(self.semantic_cubes_[j].s_start_)
                 d_up.append(self.semantic_cubes_[j].d_end_)
@@ -341,6 +351,10 @@ class BSplineOptimizer:
                     'ref stamp: {}, construct unequal constraint error, s_start: {}, s_end: {}, d_start: {}, d_end: {}'.format(
                         ref_stamp, max(s_low), min(s_up), max(d_low), min(d_up)))
                 assert False
+
+            # DEBUG
+            # print('ref stamp: {}'.format(ref_stamp))
+            # cur_unequal_constraint.print()
             unequal_constraints.append(cur_unequal_constraint)
 
         return UnequalConstraintSequence(unequal_constraints)
@@ -365,22 +379,35 @@ class BSplineOptimizer:
                 all_ref_stamps[i] = self.ref_stamps_[i - 2]
         return all_ref_stamps
 
+class Utils:
+    # Generate v-t data based on s-t
+    @staticmethod
+    def calculateVelocity(t, s):
+        diff_t = np.diff(t)
+        diff_s = np.diff(s)
+        velocity = []
+        for d_t, d_s in zip(diff_t, diff_s):
+            velocity.append(d_s/d_t)
+        velocity.insert(0, velocity[0])
+        return t, velocity
+
+
 
 if __name__ == '__main__':
     # Prepare data
-    start_constraints = EqualConstraint(0., 5., 0., 0.5, 0., 0.)
-    end_constraints = EqualConstraint(30., 5., 0., 3.5, 0., 0.)
+    start_constraints = EqualConstraint(0., 5.0, 0., -0.5, -0.1, 0.)
+    end_constraints = EqualConstraint(30., 10.0, 0., -3.5, -2.0, 0.)
 
-    cube_1 = SemanticCube(0.0, 12.0, -2.0, 2.0, 0.0, 2.0)
-    cube_2 = SemanticCube(2.0, 14.0, -2.0, 2.0, 0.4, 2.4)
-    cube_3 = SemanticCube(4.0, 16.0, -2.0, 2.0, 0.8, 2.8)
-    cube_4 = SemanticCube(6.0, 18.0, -2.0, 2.0, 1.2, 3.2)
-    cube_5 = SemanticCube(8.0, 20.0, -4.5, 2.0, 1.6, 3.6)
-    cube_6 = SemanticCube(10.0, 22.0, -4.5, 2.0, 2.0, 4.0)
-    cube_7 = SemanticCube(12.0, 24.0, -4.5, 2.0, 2.4, 4.4)
-    cube_8 = SemanticCube(14.0, 26.0, -4.5, 2.0, 2.8, 4.8)
+    cube_1 = SemanticCube(0.0, 16.0, -2.0, 2.0, 0.0, 2.0)
+    cube_2 = SemanticCube(2.0, 20.0, -2.0, 2.0, 0.4, 2.4)
+    cube_3 = SemanticCube(4.0, 22.0, -2.0, 2.0, 0.8, 2.8)
+    cube_4 = SemanticCube(6.0, 24.0, -2.0, 2.0, 1.2, 3.2)
+    cube_5 = SemanticCube(8.0, 26.0, -4.5, 2.0, 1.6, 3.6)
+    cube_6 = SemanticCube(10.0, 28.0, -4.5, 2.0, 2.0, 4.0)
+    cube_7 = SemanticCube(12.0, 28.0, -4.5, 2.0, 2.4, 4.4)
+    cube_8 = SemanticCube(14.0, 28.0, -4.5, 2.0, 2.8, 4.8)
     cube_9 = SemanticCube(16.0, 28.0, -4.5, 2.0, 3.2, 5.2)
-    cube_10 = SemanticCube(20.0, 30.0, -4.5, 2.0, 3.6, 5.6)
+    cube_10 = SemanticCube(18.0, 30.0, -4.5, 2.0, 3.6, 5.6)
     corridor = [cube_1, cube_2, cube_3, cube_4, cube_5, cube_6, cube_7, cube_8, cube_9, cube_10]
 
     ref_stamps = [0., 0.4, 0.8, 1.2, 1.6, 2., 2.4, 2.8, 3.2, 3.6, 4.]
@@ -389,6 +416,8 @@ if __name__ == '__main__':
     b_spline_optimizer = BSplineOptimizer()
     b_spline_optimizer.load(start_constraints, end_constraints, corridor, ref_stamps)
     optimized_points3d = b_spline_optimizer.runOnce()
+
+    print('optimized points: {}'.format(optimized_points3d))
 
     # Generate trajectory
     trajectory_generator = BSplineTrajectory()
@@ -407,5 +436,53 @@ if __name__ == '__main__':
     ax.set_zlabel('time')
     ax.set_ylabel('d')
     ax.set_xlabel('s')
+    ax.set_box_aspect(aspect=(x_range[1]-x_range[0], y_range[1]-y_range[0], z_range[1]-z_range[0]))
+
+    # # Visualization s-t
+    # plt.figure(1)
+    # plt.title('s-t')
+    # plt.plot(trajectory[:, 2], trajectory[:, 0], linewidth=1.0, c='r')
+    # plt.xlabel('t')
+    # plt.ylabel('s')
+    #
+    # # Visualization d_s-t
+    # d_s_t, d_s_velocity = Utils.calculateVelocity(trajectory[:, 2], trajectory[:, 0])
+    # plt.figure(2)
+    # plt.title('d_s-t')
+    # plt.plot(d_s_t, d_s_velocity, linewidth=1.0, c='r')
+    # plt.xlabel('t')
+    # plt.ylabel('d_s')
+
+    # Visualization information
+    info_fig = plt.figure(1, (12, 12))
+    ax_1 = info_fig.add_subplot(221)
+    ax_2 = info_fig.add_subplot(222)
+    ax_3 = info_fig.add_subplot(223)
+    ax_4 = info_fig.add_subplot(224)
+
+    ax_1.plot(trajectory[:, 2], trajectory[:, 0], linewidth=1.0, c='r')
+    ax_1.title.set_text('s-t')
+    ax_1.set_xlabel('t')
+    ax_1.set_ylabel('s')
+
+    s_t, s_velocity = Utils.calculateVelocity(trajectory[:, 2], trajectory[:, 0])
+    ax_2.plot(s_t, s_velocity, linewidth=1.0, c='g')
+    ax_2.title.set_text('velocity_s-t')
+    ax_2.set_xlabel('t')
+    ax_2.set_ylabel('velocity_s')
+
+    ax_3.plot(trajectory[:, 2], trajectory[:, 1], linewidth=1.0, c='r')
+    ax_3.title.set_text('d-t')
+    ax_3.set_xlabel('t')
+    ax_3.set_ylabel('d')
+
+    d_t, d_velocity = Utils.calculateVelocity(trajectory[:, 2], trajectory[:, 1])
+    ax_4.plot(d_t, d_velocity, linewidth=1.0, c='g')
+    ax_4.title.set_text('velocity_d-t')
+    ax_4.set_xlabel('t')
+    ax_4.set_ylabel('velocity_d')
+
+    plt.suptitle('Trajectory information')
+
     plt.show()
 
