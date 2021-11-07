@@ -391,6 +391,30 @@ class Utils:
         velocity.insert(0, velocity[0])
         return t, velocity
 
+    # Calculate curvature
+    @staticmethod
+    def calculateKappa(s, d):
+        assert len(s) == len(d)
+        curvature_res = [-1.0 for _ in range(len(s))]
+        for i in range(1, len(s) - 1):
+            pre_point = np.array([s[i - 1], d[i - 1]])
+            this_point = np.array([s[i], d[i]])
+            next_point = np.array([s[i + 1], d[i + 1]])
+            delta_x = this_point - pre_point
+            abs_delta_x = np.linalg.norm(delta_x)
+            # calculate the distance from this point to next point
+            delta_px = next_point - this_point
+            abs_delta_px = np.linalg.norm(delta_px)
+            # calculate the variable of yaw
+            delta_phi = np.arccos(np.dot(delta_x, delta_px.T) / (abs_delta_x * abs_delta_px))
+            assert abs_delta_x > 0 and abs_delta_px > 0
+            # calculate curvature
+            curvature_res[i] = delta_phi / abs_delta_x
+        curvature_res[0] = curvature_res[1]
+        curvature_res[-1] = curvature_res[-2]
+        return curvature_res
+
+
 
 
 if __name__ == '__main__':
@@ -439,11 +463,12 @@ if __name__ == '__main__':
     ax.set_box_aspect(aspect=(x_range[1]-x_range[0], y_range[1]-y_range[0], z_range[1]-z_range[0]))
 
     # Visualization information
-    info_fig = plt.figure(1, (12, 12))
-    ax_1 = info_fig.add_subplot(221)
-    ax_2 = info_fig.add_subplot(222)
-    ax_3 = info_fig.add_subplot(223)
-    ax_4 = info_fig.add_subplot(224)
+    info_fig = plt.figure(1, (8, 12))
+    ax_1 = info_fig.add_subplot(321)
+    ax_2 = info_fig.add_subplot(322)
+    ax_3 = info_fig.add_subplot(323)
+    ax_4 = info_fig.add_subplot(324)
+    ax_5 = info_fig.add_subplot(313)
 
     ax_1.plot(trajectory[:, 2], trajectory[:, 0], linewidth=1.0, c='r')
     ax_1.title.set_text('s-t')
@@ -466,6 +491,12 @@ if __name__ == '__main__':
     ax_4.title.set_text('velocity_d-t')
     ax_4.set_xlabel('t')
     ax_4.set_ylabel('velocity_d')
+
+    curvatures = Utils.calculateKappa(trajectory[:, 0], trajectory[:, 1])
+    ax_5.plot(trajectory[:, 2], curvatures, linewidth=1.0, c='b')
+    ax_5.title.set_text('curvature_t')
+    ax_5.set_xlabel('t')
+    ax_5.set_ylabel('curvature')
 
     plt.suptitle('Trajectory information')
 
