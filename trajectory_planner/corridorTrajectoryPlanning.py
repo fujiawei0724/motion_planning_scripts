@@ -12,16 +12,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cvxopt
 import copy
-from bezierSplineTrajectory import trajectory_generator
+from enum import Enum, unique
+from bezierSplineTrajectory import BSplineTrajectory
 from drivingCorridor import Cube
 
+@unique
+class Dimension(Enum):
+    s = 0
+    d = 1
 
 class EqualConstraint:
     """
     Brief:
-        The constraints for start point and end point
+        The constraints for start point and end point.
     Args:
-        s means the longitudinal dimension, d means the lateral dimension, d_ denotes the first derivative of time, dd_ denotes the second derivative of time
+        s means the longitudinal dimension, d means the lateral dimension, d_ denotes the first derivative of time, dd_ denotes the second derivative of time.
     """
 
     def __init__(self, s, d_s, dd_s, d, d_d, dd_d):
@@ -32,21 +37,53 @@ class EqualConstraint:
         self.d_d_ = d_d
         self.dd_d_ = dd_d
 
+    def deintegrate(self, dimension_id: Dimension):
+        if dimension_id == Dimension.s:
+            return np.array([self.s_, self.d_s_, self.dd_s_])
+        elif dimension_id == Dimension.d:
+            return np.array([self.d_, self.d_d_, self.dd_d_])
+        assert False
+
 
 class UnequalConstraint:
     """
     Brief:
-        The description os unequal constraint for a Point3D
+        The description os unequal constraint for a Point3D.
     Args:
         Given a time stamp (comes from reference time stamps), its constraints could be implied by 4 position constraints.
-            Note that for unequal constraints in this problem, only position constraints are taken in consideration
+            Note that for unequal constraints in this problem, only position constraints are taken in consideration.
     """
 
     def __init__(self, s_start, s_end, d_start, d_end):
+        if s_end <= s_start or d_start <= d_end:
+            raise UnequalConstraintError('Unequal constraint does not exist.')
         self.s_start_ = s_start
         self.s_end_ = s_end
         self.d_start_ = d_start
         self.d_end_ = d_end
+
+    def deintegrate(self, dimension_id: Dimension):
+        if dimension_id == Dimension.s:
+            return np.array([self.s_start_, self.s_end_])
+        elif dimension_id == Dimension.d:
+            return np.array([self.d_start_, self.d_end_])
+        else:
+            assert False
+
+class UnequalConstraintSequence:
+    def __init__(self, unequal_constraints):
+        self.data_ = unequal_constraints
+
+    def deintegrate(self, dimension_id: Dimension):
+        constraints = []
+        for unq_cons in self.data_:
+            constraints.append(unq_cons.deintegrate(dimension_id))
+        return np.array(constraints)
+
+
+
+class UnequalConstraintError(Exception):
+    pass
 
 
 class Point3D:
@@ -59,7 +96,7 @@ class Point3D:
 class SemanticCube(Cube):
     """
     Brief:
-        Add more methods on the base of Cube
+        Add more methods on the base of Cube.
     """
 
     def __init__(self, s_start, s_end, d_start, d_end, t_start, t_end):
@@ -73,21 +110,41 @@ class SemanticCube(Cube):
 
 
 class CvxoptInterface:
-    pass
+    """
+    Brief:
+        Solve 2 dimensions quadratic programming problem using cvxopt.
+    """
+    def __init__(self):
+        self.variables_num_ = None
+        self.start_constraint_ = None
+        self.end_constraint_ = None
+        self.unequal_constraints_ = None
+
+    # Load the real data
+    def load(self, variables_num, start_constraint, end_constraint, unequal_constraints):
+        self.variables_num_ = variables_num
+        self.start_constraint_ = start_constraint
+        self.end_constraint_ = end_constraint
+        self.unequal_constraints_ = unequal_constraints
+
+    # Run optimization
+    def runOnce(self):
+        pass
+
 
 
 class BSplineOptimizer:
     """
     Brief:
-        Optimize the parameters of b-spline based trajectory
+        Optimize the parameters of b-spline based trajectory.
     Arg:
-        cubes: the cubes need to constrain the positions of scatter points in the interpolation
-        ref_stamps: the time stamps of the points in interpolation
-            Note that the dense seed path points' detailed information only used in corridor generation, in the optimization, the reference time stamps of seed path points are enough
-        start_constraint: start point's constraint
-        end_constraint: end point's constraint
+        cubes: the cubes need to constrain the positions of scatter points in the interpolation.
+        ref_stamps: the time stamps of the points in interpolation.
+            Note that the dense seed path points' detailed information only used in corridor generation, in the optimization, the reference time stamps of seed path points are enough.
+        start_constraint: start point's constraint.
+        end_constraint: end point's constraint.
     Returns:
-        The optimized scatter points' information (s, d, t)
+        The optimized scatter points' information (s, d, t).
     """
 
     def __init__(self):
@@ -110,18 +167,36 @@ class BSplineOptimizer:
         assert len(self.semantic_cubes_) == len(self.ref_stamps_) - 1 and len(self.ref_stamps_) >= 3
         # Add additional time stamps to approximate start point and end point
         all_ref_stamps = self.calculateAllRefStamps()
+        # Calculate unequal constraints for intermediate Point3D based on their reference time stamps
+        unequal_constraints = self.generateUnequalConstraints()
 
         # ~Stage I:
 
-    # Convert the unequal constraints for each time stamps
-    def calculateUnequalConstraints(self):
-        unequal_constraints = []
-        for i in range(1, len(self.ref_stamps_) - 1):
-            pass
-
     # Merge unequal constraints using semantic cubes
-    def generateUnequalConstraints(self, semantic_cubes, ref_stamp):
-        pass
+    def generateUnequalConstraints(self):
+        unequal_constraints = []
+        for i, ref_stamp in enumerate(self.ref_stamps_):
+            if i == 0 or i == len(self.ref_stamps_) - 1:
+                # The start point and end point only have equal constraints
+                continue
+
+            # Calculate the first semantic cube affects the Point3D in reference stamp
+            first_index = max(i - 5, 0)
+            s_up, s_low, d_up, d_low = [], [], [], []
+            for j in range(first_index, i + 1):
+                s_up.append(self.semantic_cubes_[j].s_end_)
+                s_low.append(self.semantic_cubes_[j].s_start_)
+                d_up.append(self.semantic_cubes_[j].d_end_)
+                d_low.append(self.semantic_cubes_[j].d_start_)
+            cur_unequal_constraint = None
+            try:
+                cur_unequal_constraint = UnequalConstraint(max(s_low), min(s_up), max(d_low), min(d_up))
+            except UnequalConstraintError:
+                print('ref stamp: {}, construct unequal constraint error, s_start: {}, s_end: {}, d_start: {}, d_end: {}'.format(ref_stamp, max(s_low), min(s_up), max(d_low), min(d_up)))
+                assert False
+            unequal_constraints.append(cur_unequal_constraint)
+
+        return UnequalConstraintSequence(unequal_constraints)
 
     # Add additional time stamps
     def calculateAllRefStamps(self):
@@ -142,6 +217,7 @@ class BSplineOptimizer:
             else:
                 all_ref_stamps[i] = copy.copy(self.ref_stamps_[i - 2])
         return all_ref_stamps
+
 
 
 
