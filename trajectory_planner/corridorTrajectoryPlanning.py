@@ -10,16 +10,18 @@ This code contains the trajectory planning method in the constraints of corridor
 
 import numpy as np
 import matplotlib.pyplot as plt
-import cvxopt
 import copy
+from cvxopt import solvers, matrix
 from enum import Enum, unique
 from bezierSplineTrajectory import BSplineTrajectory
 from drivingCorridor import Cube
+
 
 @unique
 class Dimension(Enum):
     s = 0
     d = 1
+
 
 class EqualConstraint:
     """
@@ -70,6 +72,7 @@ class UnequalConstraint:
         else:
             assert False
 
+
 class UnequalConstraintSequence:
     def __init__(self, unequal_constraints):
         self.data_ = unequal_constraints
@@ -79,7 +82,6 @@ class UnequalConstraintSequence:
         for unq_cons in self.data_:
             constraints.append(unq_cons.deintegrate(dimension_id))
         return np.array(constraints)
-
 
 
 class UnequalConstraintError(Exception):
@@ -109,27 +111,123 @@ class SemanticCube(Cube):
         return False
 
 
+class OptimizationTools:
+    Hessian_matrix = np.array([[1.0 / 10.0, -1.0 / 12.0, -1.0 / 3.0, 1.0 / 2.0, -1.0 / 6.0, -1.0 / 60.0],
+                               [-1.0 / 12.0, 1.0 / 2.0, -5.0 / 6.0, 1.0 / 3.0, 1.0 / 4.0, -1.0 / 6.0],
+                               [-1.0 / 3.0, -5.0 / 6.0, 4.0, -11.0 / 3.0, 1.0 / 3.0, 1.0 / 2.0],
+                               [1.0 / 2.0, 1.0 / 3.0, -11.0 / 3.0, 4.0, -5.0 / 6.0, -1.0 / 3.0],
+                               [-1.0 / 6.0, 1.0 / 4.0, 1.0 / 3.0, -5.0 / 6.0, 1.0 / 2.0, -1.0 / 12.0],
+                               [-1.0 / 60.0, -1.0 / 6.0, 1.0 / 2.0, -1.0 / 3.0, -1.0 / 12.0, 1.0 / 10.0]])
+
+    @staticmethod
+    def calculateStartTime(segment_ref_stamps):
+        return (1.0 / 120.0) * segment_ref_stamps[0] + (26.0 / 120.0) * segment_ref_stamps[1] + (33.0 / 60.0) * \
+               segment_ref_stamps[2] + (13.0 / 60.0) * segment_ref_stamps[3] + (1.0 / 120.0) * segment_ref_stamps[4]
+
+    @staticmethod
+    def calculateEndTime(segment_ref_stamps):
+        return (1.0 / 120.0) * segment_ref_stamps[1] + (13.0 / 60.0) * segment_ref_stamps[2] + (33.0 / 60.0) * \
+               segment_ref_stamps[3] + (26.0 / 120.0) * segment_ref_stamps[4] + (1.0 / 120.0) * segment_ref_stamps[5]
+
+    @staticmethod
+    def calculateTimeSpan(segment_ref_stamps):
+        return OptimizationTools.calculateEndTime(segment_ref_stamps) - OptimizationTools.calculateStartTime(
+            segment_ref_stamps)
+
+
 class CvxoptInterface:
     """
     Brief:
         Solve 2 dimensions quadratic programming problem using cvxopt.
     """
+
     def __init__(self):
-        self.variables_num_ = None
+        self.all_ref_stamps_ = None
         self.start_constraint_ = None
         self.end_constraint_ = None
         self.unequal_constraints_ = None
 
     # Load the real data
-    def load(self, variables_num, start_constraint, end_constraint, unequal_constraints):
-        self.variables_num_ = variables_num
+    def load(self, all_ref_stamps, start_constraint, end_constraint, unequal_constraints):
+        self.all_ref_stamps_ = all_ref_stamps
         self.start_constraint_ = start_constraint
         self.end_constraint_ = end_constraint
         self.unequal_constraints_ = unequal_constraints
 
     # Run optimization
     def runOnce(self):
+        # Determine P matrix (objective function)
         pass
+
+    # Calculate P matrix
+    def calculatePMatrix(self):
+        points_num = len(self.all_ref_stamps_)
+
+        # Initialize P matrix
+        P = np.zeros((points_num, points_num))
+
+        # Calculate segment number
+        segment_number = points_num - 5
+
+        # Calculate matrix P iteratively
+        for i in range(0, segment_number):
+            # Calculate time span
+            segment_reference_stamps = self.all_ref_stamps_[i:i + 6]
+            time_span = OptimizationTools.calculateTimeSpan(segment_reference_stamps)
+
+            # TODO: check "time_span ** (-3)" or "time_span ** (-5)"
+            P[i:i + 6, i:i + 6] += OptimizationTools.Hessian_matrix * (time_span ** (-3))
+
+        return matrix(P)
+
+    # Calculate A matrix and b matrix
+    def calculateAbMatrix(self):
+        points_num = len(self.all_ref_stamps_)
+
+        # Initialize A matrix
+        A = np.zeros((8, points_num))
+        b = np.zeros((8,))
+
+        # Added points constrain conditions
+        A[0][0], A[0][2], A[0][4] = 1.0, -2.0, 1.0
+        A[1][1], A[1][2], A[1][3] = 1.0, -2.0, 1.0
+        A[2][points_num - 1], A[2][points_num - 3], A[2][points_num - 5] = 1.0, -2.0, 1.0
+        A[3][points_num - 2], A[3][points_num - 3], A[3][points_num - 4] = 1.0, -2.0, 1.0
+
+        # Start point and end point position constraint conditions
+        A[4][2], A[5][points_num - 3] = 1.0, 1.0
+        b[4], b[5] = self.start_constraint_[0], self.end_constraint_[0]
+
+        # Start point and end point velocity constraint conditions
+        A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[6] = self.start_constraint_[1]
+        A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 2], A[7][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[7] = self.end_constraint_[1]
+
+        # TODO: for quintic B-spline, the acceleration of the start point and point must be set to zero, add an algorithm to handle this problem.
+
+        return matrix(A), matrix(b)
+
+    # Calculate G matrix and h matrix
+    def calculateGhMatrix(self):
+        # Calculate the shape of matrix
+        points_num = len(self.all_ref_stamps_)
+        assert points_num - 6 == len(self.unequal_constraints_)
+        unequal_constraints_num = len(self.unequal_constraints_) * 2
+
+        # Initialize matrix
+        G = np.zeros((unequal_constraints_num, points_num))
+        h = np.zeros((unequal_constraints_num, ))
+
+        # Fill matrix data
+        for i, unequal_constraint in enumerate(self.unequal_constraints_):
+            G[i*2][i+3] = 1
+            h[i*2] = unequal_constraint[1]
+            G[i*2+1][i+3] = -1
+            h[i*2+1] = -unequal_constraint[0]
+
+        return matrix(G), matrix(h)
+
 
 
 
@@ -192,7 +290,9 @@ class BSplineOptimizer:
             try:
                 cur_unequal_constraint = UnequalConstraint(max(s_low), min(s_up), max(d_low), min(d_up))
             except UnequalConstraintError:
-                print('ref stamp: {}, construct unequal constraint error, s_start: {}, s_end: {}, d_start: {}, d_end: {}'.format(ref_stamp, max(s_low), min(s_up), max(d_low), min(d_up)))
+                print(
+                    'ref stamp: {}, construct unequal constraint error, s_start: {}, s_end: {}, d_start: {}, d_end: {}'.format(
+                        ref_stamp, max(s_low), min(s_up), max(d_low), min(d_up)))
                 assert False
             unequal_constraints.append(cur_unequal_constraint)
 
@@ -215,10 +315,8 @@ class BSplineOptimizer:
             elif i == len(all_ref_stamps) - 1:
                 all_ref_stamps[i] = add_stamp_4
             else:
-                all_ref_stamps[i] = copy.copy(self.ref_stamps_[i - 2])
+                all_ref_stamps[i] = self.ref_stamps_[i - 2]
         return all_ref_stamps
-
-
 
 
 if __name__ == '__main__':
