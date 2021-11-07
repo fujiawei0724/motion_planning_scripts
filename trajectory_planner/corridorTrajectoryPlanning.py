@@ -13,8 +13,12 @@ import matplotlib.pyplot as plt
 import copy
 from cvxopt import solvers, matrix
 from enum import Enum, unique
+from mpl_toolkits.mplot3d import Axes3D
+
 from bezierSplineTrajectory import BSplineTrajectory
 from drivingCorridor import Cube
+from drivingCorridor import Visualization
+from drivingCorridor import Tools
 
 
 @unique
@@ -57,7 +61,7 @@ class UnequalConstraint:
     """
 
     def __init__(self, s_start, s_end, d_start, d_end):
-        if s_end <= s_start or d_start <= d_end:
+        if s_end <= s_start or d_end <= d_start:
             raise UnequalConstraintError('Unequal constraint does not exist.')
         self.s_start_ = s_start
         self.s_end_ = s_end
@@ -88,11 +92,11 @@ class UnequalConstraintError(Exception):
     pass
 
 
-class Point3D:
-    def __init__(self, s, d, t):
-        self.s_ = s
-        self.d_ = d
-        self.t_ = t
+# class Point3D:
+#     def __init__(self, s, d, t):
+#         self.s_ = s
+#         self.d_ = d
+#         self.t_ = t
 
 
 class SemanticCube(Cube):
@@ -104,11 +108,11 @@ class SemanticCube(Cube):
     def __init__(self, s_start, s_end, d_start, d_end, t_start, t_end):
         super(SemanticCube, self).__init__(s_start, s_end, d_start, d_end, t_start, t_end)
 
-    # Judge whether a point is in the cube (contain boundaries)
-    def isInside(self, point: Point3D):
-        if self.s_start_ <= point.s_ <= self.s_end_ and self.d_start_ <= point.d_ <= self.d_end_ and self.t_start_ <= point.t_ <= self.t_end_:
-            return True
-        return False
+    # # Judge whether a point is in the cube (contain boundaries)
+    # def isInside(self, point: Point3D):
+    #     if self.s_start_ <= point.s_ <= self.s_end_ and self.d_start_ <= point.d_ <= self.d_end_ and self.t_start_ <= point.t_ <= self.t_end_:
+    #         return True
+    #     return False
 
 
 class OptimizationTools:
@@ -156,8 +160,26 @@ class CvxoptInterface:
 
     # Run optimization
     def runOnce(self):
-        # Determine P matrix (objective function)
-        pass
+        points_num = len(self.all_ref_stamps_)
+
+        # Determine P and q matrix (objective function)
+        P = self.calculatePMatrix()
+        q = matrix(np.zeros((points_num, )))
+
+        # Determine G and h matrix (unequal constraints)
+        G, h = self.calculateGhMatrix()
+
+        # Determine A and b matrix (equal constraints)
+        A, b = self.calculateAbMatrix()
+
+        res = solvers.qp(P, q, G, h, A, b)
+
+        # Construct final result
+        optimized_y = np.array(res['x'][2:-2]).reshape((1, -1))
+        # ref_stamps = np.array(self.all_ref_stamps_[2:-2])
+        # optimized_points2d = np.vstack((ref_stamps, optimized_y)).T
+
+        return optimized_y
 
     # Calculate P matrix
     def calculatePMatrix(self):
@@ -220,6 +242,7 @@ class CvxoptInterface:
         h = np.zeros((unequal_constraints_num, ))
 
         # Fill matrix data
+        # TODO: check the correctness of the matrix index
         for i, unequal_constraint in enumerate(self.unequal_constraints_):
             G[i*2][i+3] = 1
             h[i*2] = unequal_constraint[1]
@@ -261,6 +284,7 @@ class BSplineOptimizer:
 
     # Run optimization
     def runOnce(self):
+
         # ~Stage I: check, prepare, and supple data
         assert len(self.semantic_cubes_) == len(self.ref_stamps_) - 1 and len(self.ref_stamps_) >= 3
         # Add additional time stamps to approximate start point and end point
@@ -268,7 +292,30 @@ class BSplineOptimizer:
         # Calculate unequal constraints for intermediate Point3D based on their reference time stamps
         unequal_constraints = self.generateUnequalConstraints()
 
-        # ~Stage I:
+        # ~Stage II: divide the problem into two dimensions and solute them respectively
+        # Construct optimizer
+        cvx_itf = CvxoptInterface()
+
+        # Calculate longitudinal dimension
+        s_start_constraints = self.start_constraints_.deintegrate(Dimension.s)
+        s_end_constraints = self.end_constraints_.deintegrate(Dimension.s)
+        s_unequal_constraints = unequal_constraints.deintegrate(Dimension.s)
+        cvx_itf.load(all_ref_stamps, s_start_constraints, s_end_constraints, s_unequal_constraints)
+        optimized_s = cvx_itf.runOnce()
+
+        # Calculate latitudinal dimension
+        d_start_constraints = self.start_constraints_.deintegrate(Dimension.d)
+        d_end_constraints = self.end_constraints_.deintegrate(Dimension.d)
+        d_unequal_constraints = unequal_constraints.deintegrate(Dimension.d)
+        cvx_itf.load(all_ref_stamps, d_start_constraints, d_end_constraints, d_unequal_constraints)
+        optimized_d = cvx_itf.runOnce()
+
+        # ~Stage III: merge two series of 2D points to generate 3D points
+        final_t_stamps = copy.deepcopy(self.ref_stamps_)
+        points_data = np.vstack((optimized_s, optimized_d, final_t_stamps))
+        points = points_data.T
+
+        return points
 
     # Merge unequal constraints using semantic cubes
     def generateUnequalConstraints(self):
@@ -320,4 +367,45 @@ class BSplineOptimizer:
 
 
 if __name__ == '__main__':
-    pass
+    # Prepare data
+    start_constraints = EqualConstraint(0., 5., 0., 0.5, 0., 0.)
+    end_constraints = EqualConstraint(30., 5., 0., 3.5, 0., 0.)
+
+    cube_1 = SemanticCube(0.0, 12.0, -2.0, 2.0, 0.0, 2.0)
+    cube_2 = SemanticCube(2.0, 14.0, -2.0, 2.0, 0.4, 2.4)
+    cube_3 = SemanticCube(4.0, 16.0, -2.0, 2.0, 0.8, 2.8)
+    cube_4 = SemanticCube(6.0, 18.0, -2.0, 2.0, 1.2, 3.2)
+    cube_5 = SemanticCube(8.0, 20.0, -4.5, 2.0, 1.6, 3.6)
+    cube_6 = SemanticCube(10.0, 22.0, -4.5, 2.0, 2.0, 4.0)
+    cube_7 = SemanticCube(12.0, 24.0, -4.5, 2.0, 2.4, 4.4)
+    cube_8 = SemanticCube(14.0, 26.0, -4.5, 2.0, 2.8, 4.8)
+    cube_9 = SemanticCube(16.0, 28.0, -4.5, 2.0, 3.2, 5.2)
+    cube_10 = SemanticCube(20.0, 30.0, -4.5, 2.0, 3.6, 5.6)
+    corridor = [cube_1, cube_2, cube_3, cube_4, cube_5, cube_6, cube_7, cube_8, cube_9, cube_10]
+
+    ref_stamps = [0., 0.4, 0.8, 1.2, 1.6, 2., 2.4, 2.8, 3.2, 3.6, 4.]
+
+    # Fill data to optimizer
+    b_spline_optimizer = BSplineOptimizer()
+    b_spline_optimizer.load(start_constraints, end_constraints, corridor, ref_stamps)
+    optimized_points3d = b_spline_optimizer.runOnce()
+
+    # Generate trajectory
+    trajectory_generator = BSplineTrajectory()
+    trajectory = trajectory_generator.trajectoryGeneration(optimized_points3d)
+
+    # Visualization
+    # Visualization of cubes
+    x_range, y_range, z_range = Tools.calculateRanges(corridor)
+    fig = plt.figure(0)
+    ax = Axes3D(fig)
+    Visualization.visualizationCorridors(corridor, ax)
+
+    # Visualization trajectory
+    ax.plot3D(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2], 'gray')
+    ax.scatter3D(optimized_points3d[:, 0], optimized_points3d[:, 1], optimized_points3d[:, 2], cmap='Blues')
+    ax.set_zlabel('time')
+    ax.set_ylabel('d')
+    ax.set_xlabel('s')
+    plt.show()
+

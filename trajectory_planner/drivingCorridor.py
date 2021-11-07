@@ -43,7 +43,7 @@ class Tools:
 
 class Visualization:
     @staticmethod
-    def visualizationCube(cube: Cube, ax, color='red'):
+    def visualizationCube(cube, ax, color='red'):
         x, dx, y, dy, z, dz = cube.s_start_, cube.s_end_ - cube.s_start_, cube.d_start_, cube.d_end_ - cube.d_start_, cube.t_start_, cube.t_end_ - cube.t_start_
         assert isinstance(ax, Axes3D)
         xx = [x, x, x + dx, x + dx, x]
