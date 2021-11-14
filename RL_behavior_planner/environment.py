@@ -75,8 +75,34 @@ class Environment:
 
 
     # Load behavior sequence
-    def simulateBehSeq(self):
-        pass
+    # behavior sequence is a array has 11 elements, [0] denotes the longitudinal behavior, [1:11] denotes the corresponding latitudinal behavior in each time stamps respectively
+    def simulateBehSeq(self, behavior_sequence_info):
+
+        # ~Stage I: Transform the behavior sequence
+        beh_seq = []
+        for i in range(1, 11):
+            beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]), LongitudinalBehavior(behavior_sequence_info[0])))
+        behavior_sequence = BehaviorSequence(beh_seq)
+
+        # ~Stage II: Construct all vehicles
+        vehicles = copy.deepcopy(self.surround_vehicle_)
+        vehicles[0] = copy.deepcopy(self.ego_vehicle_)
+
+        # ~Stage III: Construct forward extender and predict result trajectories for all vehicles (ego and surround)
+        forward_extender = ForwardExtender(self.lane_server_, 0.4, 4.0)
+        ego_traj, surround_trajs = forward_extender.multiAgentForward(behavior_sequence, vehicles)
+        is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
+
+        # ~Stage IV: calculate cost and transform to reward
+        policy_cost = PolicyEvaluator.calculateCost(ego_traj, surround_trajs, is_final_lane_changed)
+        reward = 1.0 / policy_cost
+
+        return reward
+
+
+
+if __name__ == '__main__':
+    print(LateralBehavior(0))
 
 
 

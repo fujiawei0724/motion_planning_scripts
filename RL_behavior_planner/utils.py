@@ -261,8 +261,8 @@ class LaneServer:
     def __init__(self, lanes):
         self.lanes_ = copy.deepcopy(lanes)
 
-    # Initialize information
-    def initialize(self, vehicles):
+    # Get semantic vehicles
+    def getSemanticVehicles(self, vehicles):
         semantic_vehicles = dict()
         for vehicle in vehicles:
             if vehicle.id_ != 0:
@@ -275,6 +275,14 @@ class LaneServer:
                 semantic_vehicles[semantic_vehicle.vehicle_.id_] = semantic_vehicle
 
         return semantic_vehicles
+
+    # Get semantic vehicle
+    def getSingleSemanticVehicle(self, vehicle):
+        if vehicle.id_ == 0:
+            return self.calculateEgoVehicleBehavior(vehicle)
+        else:
+            return self.calculateSurroundVehicleBehavior(vehicle)
+
 
 
     # Find the nearest lane from a position
@@ -606,3 +614,305 @@ class IdealSteerModel:
         self.internal_state_[2] = self.state_.position_.theta_
         self.internal_state_[3] = self.state_.velocity_
         self.internal_state_[4] = self.state_.steer_
+
+# Forward simulation
+class ForwardExtender:
+
+    def __init__(self, lane_server: LaneServer, dt, predict_time_span):
+        # Information cache
+        self.lane_server_ = copy.deepcopy(lane_server)
+        self.dt_ = dt
+        self.predict_time_span_ = predict_time_span
+
+    # Forward extend with interaction among vehicles
+    def multiAgentForward(self, ego_potential_behavior_sequence: BehaviorSequence, vehicles):
+
+        # Determine ego vehicle id
+        ego_vehicle_id = 0
+
+        # Initialize current vehicle states and surround vehicle states in different time stamp
+        ego_tra = []
+        surround_tras = defaultdict(list)
+        ego_tra.append(vehicles[0])
+        for this_vehicle_id, this_vehicle in vehicles.items():
+            if this_vehicle_id == ego_vehicle_id:
+                continue
+            else:
+                surround_tras[this_vehicle_id].append(this_vehicle)
+
+        # State cache
+        cur_vehicles = copy.deepcopy(vehicles)
+
+        # Determine number of forward update
+        num_steps_forward = int(self.predict_time_span_ / self.dt_)
+        assert len(ego_potential_behavior_sequence.beh_seq_) == num_steps_forward
+
+        # Determine longitudinal behavior
+        longitudinal_behavior = ego_potential_behavior_sequence.beh_seq_[0].lon_beh_
+
+        # Start forward simulation
+        for step_index in range(0, num_steps_forward):
+
+            print('Start No. {} prediction epoch'.format(step_index + 1))
+
+            # Initialize cache
+            states_cache = {}
+
+            for veh_id, veh in cur_vehicles:
+
+                print('Predicting vehicle id: {}'.format(veh_id))
+
+                # Determine initial vehicles information
+                desired_velocity = veh.vehicle_.velocity_
+                # init_time_stamp = veh.vehicle_.time_stamp_
+                if veh_id == ego_vehicle_id:
+                    # TODO: determine ego vehicle desired velocity with different longitudinal behavior
+                    if longitudinal_behavior == LongitudinalBehavior.Conservative:
+                        desired_velocity = max(0.0, desired_velocity - 5.0)
+                    elif longitudinal_behavior == LongitudinalBehavior.Normal:
+                        desired_velocity += 0.0
+                    elif longitudinal_behavior == LongitudinalBehavior.Aggressive:
+                        desired_velocity += 5.0
+                    else:
+                        assert False
+
+
+                # TODO: set vehicles speed limits from reference lane speed limit
+                desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_vehicles, desired_velocity)
+
+                # Cache
+                states_cache[desired_veh_state.id_] = desired_veh_state
+
+            # Update current vehicle information
+            cur_vehicles = copy.deepcopy(states_cache)
+
+            # Store trajectories
+            for vehicle_id, state in states_cache.items():
+                if vehicle_id == ego_vehicle_id:
+                    ego_tra.append(state)
+                else:
+                    surround_tras[vehicle_id].append(state)
+
+        # Construct trajectories
+        ego_trajectory = Trajectory(ego_tra)
+        surround_trajectories = {}
+        for vehicle_id, vehicle_tra in surround_tras.items():
+            if vehicle_id == ego_vehicle_id:
+                assert False
+            surround_trajectories[vehicle_id] = Trajectory(vehicle_tra)
+
+        return ego_trajectory, surround_trajectories
+
+    # Forward extend without interaction among vehicles
+    def openLoopForward(self):
+        pass
+
+    # Forward once from current state
+    # Note that vehicles include ego vehicle
+    def forwardOnce(self, cur_id, ego_potential_behavior, vehicles, desired_velocity):
+        # Calculate all semantic vehicles and set ego potential behavior
+        semantic_vehicles = self.lane_server_.getSemanticVehicles(vehicles)
+        semantic_vehicles[0].potential_behaviors_ = ego_potential_behavior
+
+        # Get current semantic vehicle
+        cur_semantic_vehicle = semantic_vehicles[cur_id]
+
+        # Calculate steer
+        steer = self.calculateSteer(cur_semantic_vehicle)
+
+        # Calculate velocity
+        velocity = self.calculateVelocity(cur_semantic_vehicle, semantic_vehicles, self.dt_, desired_velocity)
+
+        # Calculate desired state
+        desired_vehicle_state = self.calculateDesiredState(cur_semantic_vehicle, steer, velocity, self.dt_)
+
+        return desired_vehicle_state
+
+
+
+    # Calculate steer
+    def calculateSteer(self, semantic_vehicle):
+        # Determine look ahead distance in reference lane
+        look_ahead_distance = min(
+            max(Config.look_ahead_min_distance, semantic_vehicle.vehicle_.velocity_ * Config.steer_control_gain),
+            Config.look_ahead_max_distance)
+
+        # Calculate nearest path point in reference lane
+        nearest_path_point = semantic_vehicle.reference_lane_.path_points_[
+            semantic_vehicle.reference_lane_.calculateNearestIndexInLane(semantic_vehicle.vehicle_.position_)]
+
+        # Calculate target path point in reference lane
+        target_path_point_in_reference_lane = semantic_vehicle.reference_lane_.calculateTargetDistancePoint(
+            nearest_path_point, look_ahead_distance)
+
+        # Calculate look ahead distance in world frame
+        look_ahead_distance_world = target_path_point_in_reference_lane.calculateDistance(
+            semantic_vehicle.vehicle_.position_)
+
+        # Calculate target angle and diff angle
+        target_angle = np.arctan2(target_path_point_in_reference_lane.y_ - semantic_vehicle.vehicle_.position_.y_,
+                                  target_path_point_in_reference_lane.x_ - semantic_vehicle.vehicle_.position_.x_)
+        diff_angle = Tools.normalizeAngle(target_angle - semantic_vehicle.vehicle_.position_.theta_)
+
+        # Calculate target steer
+        target_steer = Tools.calculateSteer(Config.wheelbase_length, diff_angle, look_ahead_distance_world)
+
+        return target_steer
+
+    # Calculate velocity
+    def calculateVelocity(self, ego_semantic_vehicle, semantic_vehicles, dt, desired_velocity):
+        # Calculate leading vehicle
+        leading_semantic_vehicle = self.lane_server_.getLeadingVehicle(ego_semantic_vehicle, semantic_vehicles)
+
+        # Judge leading vehicle state
+        if leading_semantic_vehicle is None:
+            # Don't exist leading vehicle, using virtual leading vehicle
+            virtual_leading_vehicle_distance = 100.0 + 100.0 * ego_semantic_vehicle.vehicle_.velocity_
+            target_velocity = IDM.calculateVelocity(0.0, virtual_leading_vehicle_distance,
+                                                    ego_semantic_vehicle.vehicle_.velocity_,
+                                                    ego_semantic_vehicle.vehicle_.velocity_, dt, desired_velocity)
+        else:
+            # With leading vehicle
+            # Calculate ego vehicle and leading vehicle's nearest position in corresponding lane respectively
+            assert ego_semantic_vehicle.reference_lane_ == leading_semantic_vehicle.nearest_lane_
+            corresponding_lane_ = ego_semantic_vehicle.reference_lane_
+            ego_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(
+                ego_semantic_vehicle.vehicle_.position_)
+            leading_vehicle_position_in_corresponding_lane = corresponding_lane_.calculateNearestPointInLane(
+                leading_semantic_vehicle.vehicle_.position_)
+
+            # Calculate the distance between ego vehicle and ego vehicle
+            ego_leading_vehicles_distance = ego_vehicle_position_in_corresponding_lane.calculateDistance(
+                leading_vehicle_position_in_corresponding_lane)
+            target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_distance,
+                                                    ego_semantic_vehicle.vehicle_.velocity_,
+                                                    leading_semantic_vehicle.vehicle_.velocity_, dt, desired_velocity)
+
+        return target_velocity
+
+    # Calculate desired state
+    def calculateDesiredState(self, semantic_vehicle, steer, velocity, dt):
+
+        # Load parameters for ideal steer model
+        # Wheelbase len need to fix, for different vehicles, their wheelbase length are different
+        ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration, Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
+        ideal_steer_model.setState(semantic_vehicle.vehicle_)
+        ideal_steer_model.setControl([steer, velocity])
+        ideal_steer_model.step(dt)
+
+        # Calculate predicted vehicle state (the state of a vehicle belongs to vehicle class)
+        predicted_state = ideal_steer_model.state_
+        predicted_state.time_stamp_ = semantic_vehicle.vehicle_.time_stamp_ + dt
+
+        return predicted_state
+
+# Trajectory class, includes
+class Trajectory:
+    def __init__(self, vehicle_states):
+        self.vehicle_states_ = vehicle_states
+
+    # Calculate safety cost
+    def calculateSafetyCost(self, judge_trajectory):
+        assert len(self.vehicle_states_) == len(judge_trajectory.vehicle_states_)
+
+        # Initialize safety cost
+        safety_cost = 0.0
+
+        # Judge collision
+        for time_index in range(0, len(self.vehicle_states_)):
+            assert self.vehicle_states_[time_index].time_stamp_ == judge_trajectory.vehicle_states_[time_index].time_stamp_
+
+            # Judge whether collision
+            is_collision = Rectangle.isCollision(self.vehicle_states_[time_index].rectangle_, judge_trajectory.vehicle_states_[time_index].rectangle_)
+            if is_collision:
+                safety_cost += 0.01 * abs(
+                    self.vehicle_states_[time_index].velocity_ - judge_trajectory.vehicle_states_[time_index].velocity_) * 0.5
+
+        return safety_cost
+
+# IDM model
+# TODO: parameters need to adjust the situation
+class IDM:
+    # IDM config
+    # desired_velocity = 10.0 # Update with the lane information, vehicle information and user designed
+    vehicle_length = 5.0
+    minimum_spacing = 2.0
+    desired_headaway_time = 1.0
+    acceleration = 2.0
+    comfortable_braking_deceleration = 3.0
+    hard_braking_deceleration = 5.0
+    exponent = 4
+
+    # Calculate velocity using IDM model with linear function
+    @staticmethod
+    def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt, desired_velocity):
+
+        # Linear predict function
+        def linearPredict(cur_s, leading_s, cur_velocity, leading_velocity, dt):
+            # Calculate responding acceleration
+            acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity)
+            acc = max(acc, -min(IDM.hard_braking_deceleration, cur_velocity / dt))
+            next_cur_s = cur_s + cur_velocity * dt + 0.5 * acc * dt * dt
+            next_leading_s = leading_s + leading_velocity * dt
+            next_cur_velocity = cur_velocity + acc * dt
+            next_leading_velocity = leading_velocity
+            return next_cur_s, next_leading_s, next_cur_velocity, next_leading_velocity
+
+        # State cache
+        predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity
+
+        # Predict 40 step with the time gap 0.01
+        iteration_num = 40
+        for _ in range(iteration_num):
+            predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = linearPredict(predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity, dt / iteration_num)
+
+        # # Single step predict
+        # _, _, predicted_cur_velocity, _ = linearPredict(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, 0.4)
+
+        return predicted_cur_velocity
+
+    # Calculate acceleration using IDM model
+    @staticmethod
+    def calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity):
+        # Calculate parameters
+        a_free = IDM.acceleration * (1 - pow(cur_velocity / (desired_velocity + Config.EPS),
+                                             IDM.exponent)) if cur_velocity <= desired_velocity else -IDM.comfortable_braking_deceleration * (
+                    1 - pow(desired_velocity / (cur_velocity + Config.EPS),
+                            IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
+        s_alpha = max(0.0 + Config.EPS, leading_s - cur_s - IDM.vehicle_length)
+        z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (
+                    cur_velocity - leading_velocity) / (2.0 * np.sqrt(
+            IDM.acceleration * IDM.comfortable_braking_deceleration)))) / s_alpha
+
+        # Calculate output acceleration
+        if cur_velocity <= desired_velocity:
+            a_out = IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free * (
+                        1 - pow(z, 2.0 * IDM.acceleration / (a_free + Config.EPS)))
+        else:
+            a_out = a_free + IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free
+        a_out = max(min(IDM.acceleration, a_out), -IDM.hard_braking_deceleration)
+
+        return a_out
+
+# Calculate a cost / reward for a policy
+class PolicyEvaluator:
+    @classmethod
+    def calculateCost(cls, ego_traj, sur_trajs, is_lane_changed):
+        return cls.calculateSafetyCost(ego_traj, sur_trajs) + cls.calculateLaneChangeCost(is_lane_changed) + cls.calculateEfficiencyCost(ego_traj)
+
+    @classmethod
+    def calculateLaneChangeCost(cls, is_lane_changed):
+        return 0.5 if is_lane_changed else 0.0
+
+    @classmethod
+    def calculateSafetyCost(cls, ego_traj, sur_trajs):
+        safety_cost = 0.0
+        for judge_sur_traj in sur_trajs:
+            safety_cost += ego_traj.calculateSafetyCost(judge_sur_traj)
+        return safety_cost
+
+    # TODO: parameters need to change
+    @classmethod
+    def calculateEfficiencyCost(cls, ego_traj):
+        return 1.0 / (ego_traj.vehicle_states_[-1].velocity_ - ego_traj.vehicle_states_[0].velocity_)
+
