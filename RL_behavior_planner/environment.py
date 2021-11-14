@@ -11,79 +11,11 @@ The description of environment.
 import torch
 import copy
 import numpy as np
-from enum import Enum, unique
 
-
-# Define lateral behavior
-@unique
-class LateralBehavior(Enum):
-    LaneKeeping = 0
-    LaneChangeLeft = 1
-    LaneChangeRight = 2
-
-
-# Define longitudinal behavior
-@unique
-class LongitudinalBehavior(Enum):
-    Conservative = 0
-    Normal = 1
-    Aggressive = 2
-
-# Vehicle behavior contains both latitudinal and longitudinal behavior
-class VehicleBehavior:
-    def __init__(self, lat_beh, lon_beh):
-        self.lat_beh_ = lat_beh
-        self.lon_beh_ = lon_beh
-
-# Define behavior sequence for construct behavior space
-class BehaviorSequence:
-    def __init__(self, behavior_sequence):
-        self.beh_seq_ = behavior_sequence
-
-    # DEBUG: print information
-    def print(self):
-        for veh_beh_index, veh_beh in enumerate(self.beh_seq_):
-            print('Single behavior index: {}, lateral behavior: {}, longitudinal behavior: {}'.format(veh_beh_index, veh_beh.lat_beh_, veh_beh.lon_beh_))
-
-
-# TODO: add consideration of current lateral behavior
-class BehaviorGenerator:
-    def __init__(self, seq_length):
-        self.seq_length_ = seq_length
-
-    # Construct vehicle behavior set
-    def generateBehaviors(self):
-        veh_beh_set = []
-
-        # Traverse longitudinal behaviors
-        for lon_beh in LongitudinalBehavior:
-            cur_behavior_sequence = []
-            for beh_index in range(0, self.seq_length_):
-                for lat_beh in LateralBehavior:
-                    if lat_beh != LateralBehavior.LaneKeeping:
-                        # Add lane change situations
-                        veh_beh_set.append(self.addBehavior(cur_behavior_sequence, lon_beh, lat_beh, self.seq_length_ - beh_index))
-                cur_behavior_sequence.append(VehicleBehavior(LateralBehavior.LaneKeeping, lon_beh))
-            veh_beh_set.append(BehaviorSequence(cur_behavior_sequence))
-
-        return veh_beh_set
-
-    # Add lane change situation which start from intermediate time stamp
-    @classmethod
-    def addBehavior(cls, cur_beh_seq, lon_beh, lat_beh, num):
-
-        # Initialize
-        res_beh_seq = copy.deepcopy(cur_beh_seq)
-
-        # Add lane change behavior
-        for i in range(0, num):
-            res_beh_seq.append(VehicleBehavior(lat_beh, lon_beh))
-
-        return BehaviorSequence(res_beh_seq)
-
+from utils import *
 
 # Transform the state between world and neural network data
-class StateTransformer:
+class StateInterface:
     @staticmethod
     def worldToNetData():
         pass
@@ -93,9 +25,59 @@ class StateTransformer:
         pass
 
 # Construct the environment for reward calculation
+# Environment includes the lane information and vehicle information (ego and surround)
 class Environment:
     def __init__(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
+        center_lane = None
+        left_lane = None
+        right_lane = None
+
+        # Initialize lane with the assumption that the lane has 500m to drive at least
+        center_lane_start_point = PathPoint(0.0, 0.0)
+        center_lane_end_point = PathPoint(500.0, 0.0)
+        center_lane = Lane(center_lane_start_point, center_lane_end_point, LaneId.CenterLane)
+        # center_lane_points_array = Visualization.transformPathPointsToArray(center_lane.path_points_)
+        if left_lane_exist:
+            left_lane_start_point = PathPoint(0.0, center_left_distance)
+            left_lane_end_point = PathPoint(500.0, center_left_distance)
+            left_lane = Lane(left_lane_start_point, left_lane_end_point, LaneId.LeftLane)
+            # left_lane_points_array = Visualization.transformPathPointsToArray(left_lane.path_points_)
+        if right_lane_exist:
+            right_lane_start_point = PathPoint(0.0, -center_right_distance)
+            right_lane_end_point = PathPoint(500.0, -center_right_distance)
+            right_lane = Lane(right_lane_start_point, right_lane_end_point, LaneId.RightLane)
+            # right_lane_points_array = Visualization.transformPathPointsToArray(right_lane.path_points_)
+
+        # Construct lane server
+        lanes = dict()
+        lanes[center_lane.id_] = center_lane
+        if left_lane_exist:
+            lanes[left_lane.id_] = left_lane
+        if right_lane_exist:
+            lanes[right_lane.id_] = right_lane
+        self.lane_server_ = LaneServer(lanes)
+
+    # Load vehicles information
+    # The max number of vehicles considered is 10, if the real number is lower than this, all the data will be supple with 0
+    def loadVehicleInfo(self, ego_info, sur_info):
+        # Refresh
+        self.ego_vehicle_ = None
+        self.surround_vehicle_ = None
+
+        # Load ego vehicle, ego vehicle's state could be represented by 9 values
+        self.ego_vehicle_ = Vehicle(0, PathPoint(ego_info[0], ego_info[1], ego_info[2]), ego_info[3], ego_info[4], ego_info[5], ego_info[6], 0.0, ego_info[7], ego_info[8])
+
+        # Load surround vehicles, for each surround vehicle, its state could by denoted by 8 values, compared with ego vehicle, a flag is added to denote whether this surround vehicle is exist, then the curvature and steer information are deleted because of the limits of perception
+        self.surround_vehicle_ = dict()
+        for index, single_sur_info in enumerate(sur_info):
+            if single_sur_info[0] == 1:
+                self.surround_vehicle_[index + 1] = Vehicle(index + 1, PathPoint(single_sur_info[1], single_sur_info[2], single_sur_info[3]), single_sur_info[4], single_sur_info[5], single_sur_info[6], single_sur_info[7], 0.0, 0.0, 0.0)
+
+
+    # Load behavior sequence
+    def simulateBehSeq(self):
         pass
+
 
 
 
