@@ -138,6 +138,15 @@ class BehaviorSequence:
         for veh_beh_index, veh_beh in enumerate(self.beh_seq_):
             print('Single behavior index: {}, lateral behavior: {}, longitudinal behavior: {}'.format(veh_beh_index, veh_beh.lat_beh_, veh_beh.lon_beh_))
 
+    # Print information for data transform
+    def printInfo(self):
+        info = []
+        info.append(self.beh_seq_[0].lon_beh_.value)
+        for _, veh_beh in enumerate(self.beh_seq_):
+            info.append(veh_beh.lat_beh_.value)
+        # print(info)
+        return info
+
 # Construct available behavior sequence
 # TODO: add consideration of current lateral behavior
 class BehaviorGenerator:

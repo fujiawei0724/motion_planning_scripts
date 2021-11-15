@@ -24,10 +24,93 @@ class StateInterface:
     def netDataToWorld():
         pass
 
+# Transform action between index and behavior sequence
+class ActionInterface:
+
+    action_index = np.arange(0, 63, 1)
+    action_info = np.array([[0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+                            [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2],
+                            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+                            [0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2],
+                            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                            [0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2],
+                            [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+                            [0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [1, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+                            [1, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2],
+                            [1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+                            [1, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2],
+                            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                            [1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2],
+                            [1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+                            [1, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                            [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [2, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+                            [2, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2],
+                            [2, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+                            [2, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2],
+                            [2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+                            [2, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2],
+                            [2, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                            [2, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2],
+                            [2, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+                            [2, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+    @classmethod
+    def indexToBehSeq(cls, index):
+        assert index in cls.action_index
+        return cls.action_info[index]
+
+    @classmethod
+    def behSeqToIndex(cls, beh_seq_info):
+        assert beh_seq_info in cls.action_info
+        for index, cur_beh_seq_info in enumerate(cls.action_info):
+            if (cur_beh_seq_info == beh_seq_info).all():
+                return index
+
 # Construct the environment for reward calculation
 # Environment includes the lane information and vehicle information (ego and surround)
 class Environment:
-    def __init__(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
+
+    def __init__(self):
+        pass
+
+    def loadLaneInfo(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
         center_lane = None
         left_lane = None
         right_lane = None
@@ -102,7 +185,7 @@ class Environment:
 
 
 if __name__ == '__main__':
-    print(LateralBehavior(0))
+    pass
 
 
 
