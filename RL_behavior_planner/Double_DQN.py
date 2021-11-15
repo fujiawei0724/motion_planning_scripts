@@ -18,6 +18,15 @@ class DQN(torch.nn.Module):
         self.fc2_ = torch.nn.Linear(128, 128)
         self.head = torch.nn.Linear(128, action_num)
 
+    # Initialize weight
+    def initWeights(self, m):
+        if type(m) == torch.nn.Linear:
+            torch.nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            m.bias.data.fill_(0.0)
+
+        if type(m) == torch.nn.Conv2d:
+            torch.nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+
     # Forward
     def forward(self, x):
         x = torch.nn.ReLU(self.fc1_(x))
