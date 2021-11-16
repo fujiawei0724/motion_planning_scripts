@@ -5,7 +5,7 @@
 # @Software: PyCharm
 
 """
-Generate simulation data and use these data to train the DDQN based behavior planner.
+Generate simulation data and use these data to train RL behavior planner.
 """
 
 import random
@@ -22,7 +22,7 @@ from utils import *
 Transition = namedtuple('Transion', ('state', 'action', 'next_state', 'reward'))
 
 # Behavior planner
-class Trainer:
+class DDQNTrainer:
     def __init__(self):
         # Define environment
         self._env = Environment()
@@ -232,7 +232,7 @@ class Trainer:
 
         return np.mean(rewards)
 
-                            
+
 if __name__ == '__main__':
     pass
 
