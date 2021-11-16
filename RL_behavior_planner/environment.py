@@ -7,6 +7,7 @@
 """
 The description of environment.
 """
+import random
 
 import torch
 import copy
@@ -17,7 +18,25 @@ from utils import *
 class StateInterface:
     @staticmethod
     def worldToNetData(ego_veh, surround_veh):
-        pass
+        state_array = np.zeros((89, ))
+        # Supple ego vehicle information
+        state_array[0], state_array[1], state_array[2], state_array[3], state_array[4], state_array[5], state_array[6], state_array[7], state_array[8] = ego_veh.position_.x_, ego_veh.position_.y_, ego_veh.position_.theta_, ego_veh.length_, ego_veh.width_, ego_veh.velocity_, ego_veh.acceleration_, ego_veh.curvature_, ego_veh.steer_
+        
+        # Supple surround vehicles information
+        for i in range(1, len(surround_veh) + 1):
+            start_index = 9 + (i - 1) * 8
+            cur_veh_state = surround_veh[i]
+            state_array[start_index], state_array[start_index + 1], state_array[start_index + 2], state_array[start_index + 3], state_array[start_index + 4], state_array[start_index + 5], state_array[start_index + 6], state_array[start_index + 7] = 1, cur_veh_state.position_.x_, cur_veh_state.position_.y_, cur_veh_state.position_.theta_, cur_veh_state.length_, cur_veh_state.width_, cur_veh_state.velocity_, cur_veh_state.acceleration_
+
+        return state_array
+
+    @staticmethod
+    def worldToNetDataAll(lane_info, ego_veh, surround_veh):
+        all_state_array = np.zeros((93, ))
+        all_state_array[:4] = lane_info[:]
+        vehicles_state_array = StateInterface.worldToNetData(ego_veh, surround_veh)
+        all_state_array[4:] = vehicles_state_array[:]
+        return all_state_array
 
     @staticmethod
     def netDataToWorld():
@@ -30,22 +49,16 @@ class StateInterface:
         # Supple lane information
         next_state[:4] = copy.deepcopy(lane_info)
 
-        # Supple ego vehicle information
-        ego_next_state = ego_traj.vehicle_states_[-1]
-        assert isinstance(ego_next_state, Vehicle)
-        next_state[4], next_state[5], next_state[6], next_state[7], next_state[8], next_state[9], next_state[10], next_state[11], next_state[12] = ego_next_state.position_.x_, ego_next_state.position_.y_, ego_next_state.position_.theta_, ego_next_state.length_, ego_next_state.width_, ego_next_state.velocity_, ego_next_state.acceleration_, ego_next_state.curvature_, ego_next_state.steer_
+        # Calculate ege vehicle state and surround vehicles states
+        ego_veh_state = ego_traj.vehicle_states_[-1]
+        sur_veh_states = {}
+        for sur_veh_id, sur_veh_traj in surround_trajs.items():
+            sur_veh_states[sur_veh_id] = sur_veh_traj.vehicle_states_[-1]
 
-        # Supple surround vehicles information in order
-        for i in range(1, len(surround_trajs) + 1):
+        # Calculate states array
+        state_array = StateInterface.worldToNetData(ego_veh_state, sur_veh_states)
 
-            # Get current surround vehicle's next state
-            cur_sur_traj = surround_trajs[i]
-            cur_veh_next_state = cur_sur_traj.vehicle_states_[-1]
-            assert isinstance(cur_veh_next_state, Vehicle)
-
-            # Get supple start index and load data
-            start_index = 13 + 8 * (i - 1)
-            next_state[start_index], next_state[start_index + 1], next_state[start_index + 2], next_state[start_index + 3], next_state[start_index + 4], next_state[start_index + 5], next_state[start_index + 6], next_state[start_index + 7] = 1, cur_veh_next_state.position_.x_, cur_veh_next_state.position_.y_, cur_veh_next_state.position_.theta_, cur_veh_next_state.length_, cur_veh_next_state.width_, cur_veh_next_state.velocity_, cur_veh_next_state.acceleration_
+        next_state[5:] = state_array[:]
 
         return next_state
 
@@ -135,7 +148,28 @@ class ActionInterface:
 class Environment:
 
     def __init__(self):
-        pass
+        # Initialize shell
+        self.lane_info_ = None
+        self.lane_server_ = None
+        self.ego_vehicle_ = None
+        self.surround_vehicle_ = None
+
+    def load(self, all_state_array):
+        # Check data
+        self.lane_info_ = None
+        self.lane_server_ = None
+        self.ego_vehicle_ = None
+        self.surround_vehicle_ = None
+        assert len(all_state_array) == 93
+
+        # Load lanes data
+        left_lane_exist, right_lane_exist, center_left_distance, center_right_distance = all_state_array[0], all_state_array[1], all_state_array[2], all_state_array[3]
+        self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+
+        # Load vehicles data
+        ego_vehicle_state_array = all_state_array[4:13]
+        sur_vehicles_states_array = all_state_array[13:].resize(10, 8)
+        self.loadVehicleInfo(ego_vehicle_state_array, sur_vehicles_states_array)
 
     def loadLaneInfo(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
         # Store next state for next state calculation
@@ -215,12 +249,22 @@ class Environment:
 
         return reward, next_state
 
+    # Run with a action index
+    def runOnce(self, action):
+        beh_seq = ActionInterface.indexToBehSeq(action)
+        reward, next_state = self.simulateBehSeq(beh_seq)
+        return reward, next_state
+
 
 
 
 if __name__ == '__main__':
-    pass
-
+    np.random.seed(156)
+    a = np.random.rand(4, 3)
+    c = np.array([10, 20, 30, 40, 50, 60])
+    b = c.reshape(2, 3)
+    print(a)
+    print(b)
 
 
 

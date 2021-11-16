@@ -5,7 +5,7 @@
 # @Software: PyCharm
 
 """
-Generate simulation data and use these data to train neural network.
+Generate simulation data and use these data to train the DDQN based behavior planner.
 """
 
 import random
@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
-from Double_DQN import DQN
+from Double_DQN_net import DQN
 from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
@@ -22,7 +22,7 @@ from utils import *
 Transition = namedtuple('Transion', ('state', 'action', 'next_state', 'reward'))
 
 # Behavior planner
-class DDQNBehaviorPlanner:
+class Trainer:
     def __init__(self):
         # Define environment
         self._env = Environment()
@@ -140,15 +140,99 @@ class DDQNBehaviorPlanner:
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
             env = Environment()
-            env.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
 
             # Vehicles information reset iteration
             for vehicles_reset_episode in range(0, self._max_vehicle_info_reset_num):
-                pass
+                # Construct ego vehicle and surround vehicles randomly
+                ego_vehicle = EgoInfoGenerator.generateOnce()
+                surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+                surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
 
+                # Transform to state array
+                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle, surround_vehicles)
 
+                # Load all information to env
+                env.load(current_state_array)
 
+                # Record reward
+                total_reward = 0
 
+                # Simulate a round, each round include three behavior sequences
+                for _ in range(0, self._max_iteration_num):
+                    # Generate behavior
+                    action = self.selectAction(current_state_array)
+                    # Execute selected action
+                    next_state_array, reward = env.runOnce(action)
+                    # Store information to memory buffer
+                    self._memory_replay.update(Transition(current_state_array, action, next_state_array, reward))
+                    # Update environment and current state
+                    current_state_array = next_state_array
+                    env.load(current_state_array)
+                    # Sum reward
+                    total_reward += reward
+
+                    # Judge if update
+                    if self._memory_replay.size() > self._buffer_full:
+                        # Execute optimization
+                        if self._steps_done % self._optimize_frequency == 0:
+                            self.optimizeProcess()
+                        # Update target network parameters
+                        if self._steps_done % self._target_update == 0:
+                            self._target_net.load_state_dict(self._policy_net.state_dict())
+                            print('Update target net in {} round'.format(self._steps_done))
+                        # Evaluate model
+                        if self._steps_done % self._evaluation_frequency == 0:
+                            evaluate_reward = self.evaluate()
+                            self._summary_writer.add_scalar('evaluation', evaluate_reward, self._steps_done)
+                            print('Step ', self._steps_done, ' Evaluation reward ', evaluate_reward)
+                        self._steps_done += 1
+
+                # Calculate current calculation number
+                episode = env_reset_episode * self._max_vehicle_info_reset_num * self._max_iteration_num + vehicles_reset_episode * self._max_iteration_num
+                if episode % 20 == 0:
+                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(episode % 3) + '.pt')
+                    print('Episode: ', episode, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
+                self._summary_writer.add_scalar('reward', total_reward, self._steps_done)
+
+    # Evaluate training
+    def evaluate(self, episodes=15):
+        # Initialize data
+        rewards = []
+        env = Environment()
+
+        for episode in range(0, episodes):
+            # Load environment data randomly
+            # TODO: delete error situations, such as collision
+            left_lane_exist = random.randint(0, 1)
+            right_lane_exist = random.randint(0, 1)
+            center_left_distance = random.uniform(3.0, 4.5)
+            center_right_distance = random.uniform(3.0, 4.5)
+            # Construct ego vehicle and surround vehicles randomly
+            ego_vehicle = EgoInfoGenerator.generateOnce()
+            surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+            surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+            # Transform to state array
+            current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle, surround_vehicles)
+
+            # Record reward
+            total_reward = 0.0
+
+            for _ in range(0, self._max_iteration_num):
+                # Generate behavior
+                action = self.selectAction(current_state_array, False)
+                # Execute selected action
+                next_state_array, reward = env.runOnce(action)
+                # Update environment and current state
+                current_state_array = next_state_array
+                env.load(current_state_array)
+                # Sum reward
+                total_reward += reward
+
+            rewards.append(total_reward)
+
+        return np.mean(rewards)
+
+                            
 if __name__ == '__main__':
     pass
 

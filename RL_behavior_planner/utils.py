@@ -967,11 +967,9 @@ class PolicyEvaluator:
 
 # Agent vehicle generator (without ego vehicle)
 class AgentGenerator:
-    def __init__(self, lanes_info):
-        left_lane_exist, right_lane_exist, center_left_exist, center_right_exist = lanes_info[0], lanes_info[1], \
-                                                                                   lanes_info[2], lanes_info[3]
-        self.y_boundary_up_ = 1.5 if not left_lane_exist else center_left_exist
-        self.y_boundary_low_ = -1.5 if not right_lane_exist else -center_right_exist
+    def __init__(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
+        self.y_boundary_up_ = 1.5 if not left_lane_exist else center_left_distance
+        self.y_boundary_low_ = -1.5 if not right_lane_exist else -center_right_distance
 
     # Generate surround agents information
     def generateSingleAgent(self, index):
@@ -998,7 +996,7 @@ class AgentGenerator:
 # Ego vehicle train information generator
 class EgoInfoGenerator:
     @staticmethod
-    def generate():
+    def generateOnce():
         # Define the constants
         length = 5.0
         width = 1.95
