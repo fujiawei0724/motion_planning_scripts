@@ -213,6 +213,8 @@ class DDQNTrainer:
             surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
             # Transform to state array
             current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle, surround_vehicles)
+            # Load information to environment
+            env.load(current_state_array)
 
             # Record reward
             total_reward = 0.0

@@ -71,7 +71,17 @@ class DDQNTester:
         print('Best actions: {}'.format(best_actions))
         print('Best rewards: {}'.format(best_rewards))
 
-        
+if __name__ == '__main__':
+    plt.figure(0)
+    ax_1 = plt.axes()
+    ax_1.plot(np.arange(0, 10, 1), np.arange(0, 10, 1), c='r', linewidth=1.0)
+    plt.figure(1)
+    ax_2 = plt.axes()
+    ax_2.plot(np.arange(0, 10, 1), np.arange(0, 10, 1), c='g', linewidth=1.0)
+
+    plt.show()
+
+
 
 
 

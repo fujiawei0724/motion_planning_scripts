@@ -286,8 +286,8 @@ class LaneServer:
     # Get semantic vehicles
     def getSemanticVehicles(self, vehicles):
         semantic_vehicles = dict()
-        for vehicle in vehicles:
-            if vehicle.id_ != 0:
+        for veh_id, vehicle in vehicles.items():
+            if veh_id != 0:
                 # For surround vehicle
                 semantic_vehicle = self.calculateSurroundVehicleBehavior(vehicle)
                 semantic_vehicles[semantic_vehicle.vehicle_.id_] = semantic_vehicle
@@ -304,6 +304,34 @@ class LaneServer:
             return self.calculateEgoVehicleBehavior(vehicle)
         else:
             return self.calculateSurroundVehicleBehavior(vehicle)
+
+    # Reset ego semantic vehicle from the given potential behavior
+    def resetEgoSemanticVehicle(self, vehicle, potential_behavior):
+        assert vehicle.id_ == 0
+        # Find the nearest lane
+        nearest_lane = self.findNearestLane(vehicle.position_)
+
+        if nearest_lane.id_ == LaneId.CenterLane:
+            if potential_behavior == LateralBehavior.LaneChangeLeft and LaneId.LeftLane in self.lanes_:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.LeftLane])
+            elif potential_behavior == LateralBehavior.LaneChangeRight and LaneId.RightLane in self.lanes_:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.RightLane])
+            else:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
+
+        elif nearest_lane.id_ == LaneId.LeftLane:
+            if potential_behavior == LateralBehavior.LaneChangeRight and LaneId.CenterLane in self.lanes_:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.CenterLane])
+            else:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
+
+        elif nearest_lane.id_ == LaneId.RightLane:
+            if potential_behavior == LateralBehavior.LaneChangeLeft and LaneId.CenterLane in self.lanes_:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.CenterLane])
+            else:
+                return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
+        else:
+            assert False
 
     # Find the nearest lane from a position
     def findNearestLane(self, cur_position):
@@ -329,31 +357,28 @@ class LaneServer:
         # Generate semantic vehicles
         if lateral_distance >= Config.lateral_distance_threshold and lateral_velocity >= Config.lateral_velocity_threshold:
             # For change left
-            if nearest_lane.id_ == LaneId.CenterLane:
+            if nearest_lane.id_ == LaneId.CenterLane and LaneId.LeftLane in self.lanes_:
                 return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane,
                                        self.lanes_[LaneId.LeftLane])
             elif nearest_lane.id_ == LaneId.LeftLane:
                 # Error situation, set lane keeping
                 return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
-            elif nearest_lane.id_ == LaneId.RightLane:
+            else:
                 return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane,
                                        self.lanes_[LaneId.CenterLane])
-            else:
-                assert False
+
 
         elif lateral_distance <= -Config.lateral_distance_threshold and lateral_velocity <= -Config.lateral_velocity_threshold:
             # For change right
-            if nearest_lane.id_ == LaneId.CenterLane:
+            if nearest_lane.id_ == LaneId.CenterLane and LaneId.RightLane in self.lanes_:
                 return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane,
                                        self.lanes_[LaneId.RightLane])
             elif nearest_lane.id_ == LaneId.LeftLane:
                 return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane,
                                        self.lanes_[LaneId.CenterLane])
-            elif nearest_lane.id_ == LaneId.RightLane:
+            else:
                 # Error situation, set lane keeping
                 return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
-            else:
-                assert False
 
         else:
             return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
@@ -694,12 +719,12 @@ class ForwardExtender:
             # Initialize cache
             states_cache = {}
 
-            for veh_id, veh in cur_vehicles:
+            for veh_id, veh in cur_vehicles.items():
 
                 print('Predicting vehicle id: {}'.format(veh_id))
 
                 # Determine initial vehicles information
-                desired_velocity = veh.vehicle_.velocity_
+                desired_velocity = veh.velocity_
                 # init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
                     # TODO: determine ego vehicle desired velocity with different longitudinal behavior
@@ -713,9 +738,7 @@ class ForwardExtender:
                         assert False
 
                 # TODO: set vehicles speed limits from reference lane speed limit
-                desired_veh_state = self.forwardOnce(veh_id,
-                                                     ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_,
-                                                     cur_vehicles, desired_velocity)
+                desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_vehicles, desired_velocity)
 
                 # Cache
                 states_cache[desired_veh_state.id_] = desired_veh_state
@@ -749,7 +772,7 @@ class ForwardExtender:
     def forwardOnce(self, cur_id, ego_potential_behavior, vehicles, desired_velocity):
         # Calculate all semantic vehicles and set ego potential behavior
         semantic_vehicles = self.lane_server_.getSemanticVehicles(vehicles)
-        semantic_vehicles[0].potential_behaviors_ = ego_potential_behavior
+        semantic_vehicles[0] = self.lane_server_.resetEgoSemanticVehicle(vehicles[0], ego_potential_behavior)
 
         # Get current semantic vehicle
         cur_semantic_vehicle = semantic_vehicles[cur_id]
@@ -955,7 +978,7 @@ class PolicyEvaluator:
     @classmethod
     def calculateSafetyCost(cls, ego_traj, sur_trajs):
         safety_cost = 0.0
-        for judge_sur_traj in sur_trajs:
+        for _, judge_sur_traj in sur_trajs.items():
             safety_cost += ego_traj.calculateSafetyCost(judge_sur_traj)
         return safety_cost
 
@@ -1002,4 +1025,7 @@ class EgoInfoGenerator:
         width = 1.95
         curvature = random.uniform(-0.1, 0.1)
         steer = np.arctan(curvature * 2.8)
-        return Vehicle(0, PathPoint(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0), random.uniform(-0.2, 0.2)), length, width, random.uniform(0.0, 10.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
+        return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.2, 0.2)), length, width, random.uniform(0.0, 10.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
+
+if __name__ == '__main__':
+    pass

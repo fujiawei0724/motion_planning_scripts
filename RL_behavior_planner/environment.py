@@ -12,6 +12,8 @@ import random
 import torch
 import copy
 import numpy as np
+import matplotlib.pyplot as plt
+from shapely.geometry import Polygon
 from utils import *
 
 # Transform the state between world and neural network data
@@ -58,7 +60,7 @@ class StateInterface:
         # Calculate states array
         state_array = StateInterface.worldToNetData(ego_veh_state, sur_veh_states)
 
-        next_state[5:] = state_array[:]
+        next_state[4:] = state_array[:]
 
         return next_state
 
@@ -161,6 +163,7 @@ class Environment:
         self.ego_vehicle_ = None
         self.surround_vehicle_ = None
         assert len(all_state_array) == 93
+        all_state_array = np.array(all_state_array)
 
         # Load lanes data
         left_lane_exist, right_lane_exist, center_left_distance, center_right_distance = all_state_array[0], all_state_array[1], all_state_array[2], all_state_array[3]
@@ -168,7 +171,7 @@ class Environment:
 
         # Load vehicles data
         ego_vehicle_state_array = all_state_array[4:13]
-        sur_vehicles_states_array = all_state_array[13:].resize(10, 8)
+        sur_vehicles_states_array = all_state_array[13:].reshape(10, 8)
         self.loadVehicleInfo(ego_vehicle_state_array, sur_vehicles_states_array)
 
     def loadLaneInfo(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
@@ -255,16 +258,69 @@ class Environment:
         reward, next_state = self.simulateBehSeq(beh_seq)
         return reward, next_state
 
+    # DEBUG: visualization
+    def visualization(self, ax):
+        # Visualization lanes
+        if LaneId.CenterLane in self.lane_server_.lanes_:
+            center_lane = self.lane_server_.lanes_[LaneId.CenterLane]
+            center_lane_points_array = Visualization.transformPathPointsToArray(center_lane.path_points_)
+            ax.plot(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='m', linewidth=1.0)
+            ax.plot(center_lane.left_boundary_points_[:, 0], center_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+            ax.plot(center_lane.right_boundary_points_[:, 0], center_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+        if LaneId.LeftLane in self.lane_server_.lanes_:
+            left_lane = self.lane_server_.lanes_[LaneId.LeftLane]
+            left_lane_points_array = Visualization.transformPathPointsToArray(left_lane.path_points_)
+            ax.plot(left_lane_points_array[:, 0], left_lane_points_array[:, 1], c='m', linewidth=1.0)
+            ax.plot(left_lane.left_boundary_points_[:, 0], left_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+            ax.plot(left_lane.right_boundary_points_[:, 0], left_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+        if LaneId.RightLane in self.lane_server_.lanes_:
+            right_lane = self.lane_server_.lanes_[LaneId.RightLane]
+            right_lane_points_array = Visualization.transformPathPointsToArray(right_lane.path_points_)
+            ax.plot(right_lane_points_array[:, 0], right_lane_points_array[:, 1], c='m', linewidth=1.0)
+            ax.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+            ax.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
 
+        # Visualization vehicles
+        ego_vehilce = copy.deepcopy(self.ego_vehicle_)
+        surround_vehicles = copy.deepcopy(self.surround_vehicle_)
+        ego_vehicle_polygon = Polygon(ego_vehilce.rectangle_.vertex_)
+        ax.plot(*ego_vehicle_polygon.exterior.xy, c='r')
+        for _, sur_veh in surround_vehicles.items():
+            cur_sur_vehicle_polygon = Polygon(sur_veh.rectangle_.vertex_)
+            ax.plot(*cur_sur_vehicle_polygon.exterior.xy, c='g')
 
 
 if __name__ == '__main__':
-    np.random.seed(156)
-    a = np.random.rand(4, 3)
-    c = np.array([10, 20, 30, 40, 50, 60])
-    b = c.reshape(2, 3)
-    print(a)
-    print(b)
+    random.seed(1555)
+    # Load environment data randomly
+    left_lane_exist = random.randint(0, 1)
+    right_lane_exist = random.randint(0, 1)
+    center_left_distance = random.uniform(3.0, 4.5)
+    center_right_distance = random.uniform(3.0, 4.5)
+    # Construct ego vehicle and surround vehicles randomly
+    ego_vehicle = EgoInfoGenerator.generateOnce()
+    surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance,
+                                                 center_right_distance)
+    surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+    # Transform to state array
+    current_state_array = StateInterface.worldToNetDataAll(
+        [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle,
+        surround_vehicles)
+    # Construct environment
+    env = Environment()
+    env.load(current_state_array)
+    plt.figure(0)
+    ax = plt.axes()
+    env.visualization(ax)
+    plt.axis('equal')
+    reward, next_state_array = env.runOnce(56)
+    plt.figure(1)
+    ax_2 = plt.axes()
+    env.load(next_state_array)
+    env.visualization(ax_2)
+    plt.axis('equal')
+    plt.show()
+
 
 
 
