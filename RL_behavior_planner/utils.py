@@ -30,6 +30,7 @@ class LongitudinalBehavior(Enum):
     Normal = 1
     Aggressive = 2
 
+
 class Config:
     BigEPS = 1e-1
     EPS = 1e-7
@@ -51,6 +52,7 @@ class Config:
 
     # User defined velocity
     user_desired_velocity = 8.0
+
 
 class Tools:
     @staticmethod
@@ -76,7 +78,6 @@ class Tools:
         res = min(res, upper)
         return res
 
-
     # For OBB rectangle collision judgement
     @staticmethod
     def getProjectionOnVertex(vertex, axis):
@@ -99,6 +100,7 @@ class Tools:
         else:
             return min(proj_1[1], proj_2[1]) - max(proj_1[0], proj_2[0])
 
+
 # Visualization
 class Visualization:
     @staticmethod
@@ -112,6 +114,7 @@ class Visualization:
             path_points_array[index][1] = path_point.y_
 
         return path_points_array
+
 
 # Vehicle behavior contains both latitudinal and longitudinal behavior
 class VehicleBehavior:
@@ -136,7 +139,9 @@ class BehaviorSequence:
     # DEBUG: print information
     def print(self):
         for veh_beh_index, veh_beh in enumerate(self.beh_seq_):
-            print('Single behavior index: {}, lateral behavior: {}, longitudinal behavior: {}'.format(veh_beh_index, veh_beh.lat_beh_, veh_beh.lon_beh_))
+            print('Single behavior index: {}, lateral behavior: {}, longitudinal behavior: {}'.format(veh_beh_index,
+                                                                                                      veh_beh.lat_beh_,
+                                                                                                      veh_beh.lon_beh_))
 
     # Print information for data transform
     def printInfo(self):
@@ -146,6 +151,7 @@ class BehaviorSequence:
             info.append(veh_beh.lat_beh_.value)
         # print(info)
         return info
+
 
 # Construct available behavior sequence
 # TODO: add consideration of current lateral behavior
@@ -164,7 +170,8 @@ class BehaviorGenerator:
                 for lat_beh in LateralBehavior:
                     if lat_beh != LateralBehavior.LaneKeeping:
                         # Add lane change situations
-                        veh_beh_set.append(self.addBehavior(cur_behavior_sequence, lon_beh, lat_beh, self.seq_length_ - beh_index))
+                        veh_beh_set.append(
+                            self.addBehavior(cur_behavior_sequence, lon_beh, lat_beh, self.seq_length_ - beh_index))
                 cur_behavior_sequence.append(VehicleBehavior(LateralBehavior.LaneKeeping, lon_beh))
             veh_beh_set.append(BehaviorSequence(cur_behavior_sequence))
 
@@ -182,6 +189,7 @@ class BehaviorGenerator:
             res_beh_seq.append(VehicleBehavior(lat_beh, lon_beh))
 
         return BehaviorSequence(res_beh_seq)
+
 
 # Path point class
 class PathPoint:
@@ -218,9 +226,14 @@ class Lane:
         # Sampling based generation
         lane_width = 3.5
         for sample in samples:
-            lane_path_points.append(PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
-            lane_left_boundary_points.append([start_point.x_ + sample * x_diff + np.cos(lane_theta + math.pi / 2.0) * lane_width / 2.0, start_point.y_ + sample * y_diff + np.sin(lane_theta + math.pi / 2.0) * lane_width / 2.0])
-            lane_right_boundary_points.append([start_point.x_ + sample * x_diff + np.cos(lane_theta - math.pi / 2.0) * lane_width / 2.0, start_point.y_ + sample * y_diff + np.sin(lane_theta - math.pi / 2.0) * lane_width / 2.0])
+            lane_path_points.append(
+                PathPoint(start_point.x_ + sample * x_diff, start_point.y_ + sample * y_diff, lane_theta))
+            lane_left_boundary_points.append(
+                [start_point.x_ + sample * x_diff + np.cos(lane_theta + math.pi / 2.0) * lane_width / 2.0,
+                 start_point.y_ + sample * y_diff + np.sin(lane_theta + math.pi / 2.0) * lane_width / 2.0])
+            lane_right_boundary_points.append(
+                [start_point.x_ + sample * x_diff + np.cos(lane_theta - math.pi / 2.0) * lane_width / 2.0,
+                 start_point.y_ + sample * y_diff + np.sin(lane_theta - math.pi / 2.0) * lane_width / 2.0])
         self.path_points_ = lane_path_points
         self.left_boundary_points_ = np.array(lane_left_boundary_points)
         self.right_boundary_points_ = np.array(lane_right_boundary_points)
@@ -292,8 +305,6 @@ class LaneServer:
         else:
             return self.calculateSurroundVehicleBehavior(vehicle)
 
-
-
     # Find the nearest lane from a position
     def findNearestLane(self, cur_position):
         if not self.lanes_:
@@ -319,21 +330,25 @@ class LaneServer:
         if lateral_distance >= Config.lateral_distance_threshold and lateral_velocity >= Config.lateral_velocity_threshold:
             # For change left
             if nearest_lane.id_ == LaneId.CenterLane:
-                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.LeftLane])
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane,
+                                       self.lanes_[LaneId.LeftLane])
             elif nearest_lane.id_ == LaneId.LeftLane:
                 # Error situation, set lane keeping
                 return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
             elif nearest_lane.id_ == LaneId.RightLane:
-                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane, self.lanes_[LaneId.CenterLane])
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeLeft, nearest_lane,
+                                       self.lanes_[LaneId.CenterLane])
             else:
                 assert False
 
         elif lateral_distance <= -Config.lateral_distance_threshold and lateral_velocity <= -Config.lateral_velocity_threshold:
             # For change right
             if nearest_lane.id_ == LaneId.CenterLane:
-                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.RightLane])
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane,
+                                       self.lanes_[LaneId.RightLane])
             elif nearest_lane.id_ == LaneId.LeftLane:
-                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane, self.lanes_[LaneId.CenterLane])
+                return SemanticVehicle(vehicle, LateralBehavior.LaneChangeRight, nearest_lane,
+                                       self.lanes_[LaneId.CenterLane])
             elif nearest_lane.id_ == LaneId.RightLane:
                 # Error situation, set lane keeping
                 return SemanticVehicle(vehicle, LateralBehavior.LaneKeeping, nearest_lane, nearest_lane)
@@ -418,7 +433,8 @@ class LaneServer:
 
 # Vehicle class
 class Vehicle:
-    def __init__(self, vehicle_id, position, length, width, velocity, acceleration, time_stamp=None, curvature=0.0, steer=0.0):
+    def __init__(self, vehicle_id, position, length, width, velocity, acceleration, time_stamp=None, curvature=0.0,
+                 steer=0.0):
         self.id_ = vehicle_id
         self.position_ = position
         self.length_ = length
@@ -454,19 +470,26 @@ class Rectangle:
         self.axes_ = []
         self.generateAxes()
 
-
     # Generate vertex
     def generateVertex(self):
 
         # Calculate four vertex position respectively
-        point_1_x = self.center_point_.x_ + self.length_ * 0.5 * np.cos(self.center_point_.theta_) - self.width_ * 0.5 * np.sin(self.center_point_.theta_)
-        point_1_y = self.center_point_.y_ + self.length_ * 0.5 * np.sin(self.center_point_.theta_) + self.width_ * 0.5 * np.cos(self.center_point_.theta_)
-        point_2_x = self.center_point_.x_ + self.length_ * 0.5 * np.cos(self.center_point_.theta_) + self.width_ * 0.5 * np.sin(self.center_point_.theta_)
-        point_2_y = self.center_point_.y_ + self.length_ * 0.5 * np.sin(self.center_point_.theta_) - self.width_ * 0.5 * np.cos(self.center_point_.theta_)
-        point_3_x = self.center_point_.x_ - self.length_ * 0.5 * np.cos(self.center_point_.theta_) + self.width_ * 0.5 * np.sin(self.center_point_.theta_)
-        point_3_y = self.center_point_.y_ - self.length_ * 0.5 * np.sin(self.center_point_.theta_) - self.width_ * 0.5 * np.cos(self.center_point_.theta_)
-        point_4_x = self.center_point_.x_ - self.length_ * 0.5 * np.cos(self.center_point_.theta_) - self.width_ * 0.5 * np.sin(self.center_point_.theta_)
-        point_4_y = self.center_point_.y_ - self.length_ * 0.5 * np.sin(self.center_point_.theta_) + self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_1_x = self.center_point_.x_ + self.length_ * 0.5 * np.cos(
+            self.center_point_.theta_) - self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_1_y = self.center_point_.y_ + self.length_ * 0.5 * np.sin(
+            self.center_point_.theta_) + self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_2_x = self.center_point_.x_ + self.length_ * 0.5 * np.cos(
+            self.center_point_.theta_) + self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_2_y = self.center_point_.y_ + self.length_ * 0.5 * np.sin(
+            self.center_point_.theta_) - self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_3_x = self.center_point_.x_ - self.length_ * 0.5 * np.cos(
+            self.center_point_.theta_) + self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_3_y = self.center_point_.y_ - self.length_ * 0.5 * np.sin(
+            self.center_point_.theta_) - self.width_ * 0.5 * np.cos(self.center_point_.theta_)
+        point_4_x = self.center_point_.x_ - self.length_ * 0.5 * np.cos(
+            self.center_point_.theta_) - self.width_ * 0.5 * np.sin(self.center_point_.theta_)
+        point_4_y = self.center_point_.y_ - self.length_ * 0.5 * np.sin(
+            self.center_point_.theta_) + self.width_ * 0.5 * np.cos(self.center_point_.theta_)
 
         # Store
         self.vertex_.append([point_1_x, point_1_y])
@@ -491,8 +514,6 @@ class Rectangle:
         self.axes_.append([-normalized_vec_2[1], normalized_vec_2[0]])
 
         self.axes_ = np.array(self.axes_)
-
-
 
     # Judge collision
     @classmethod
@@ -519,10 +540,12 @@ class Rectangle:
 
         return True
 
+
 # Ideal steer model
 class IdealSteerModel:
 
-    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc, max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
+    def __init__(self, wheelbase_len, max_lon_acc, max_lon_dec, max_lon_acc_jerk, max_lon_dec_jerk, max_lat_acc,
+                 max_lat_jerk, max_steering_angle, max_steer_rate, max_curvature):
         self.wheelbase_len_ = wheelbase_len
         self.max_lon_acc_ = max_lon_acc
         self.max_lon_dec_ = max_lon_dec
@@ -612,7 +635,10 @@ class IdealSteerModel:
         # self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
         # self.state_.acceleration_ = self.desired_lon_acc_
 
-        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_, predict_state[3], self.desired_lon_acc_, None, np.tan(predict_state[4]) * 1.0 / self.wheelbase_len_, Tools.normalizeAngle(predict_state[4]))
+        self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_,
+                              predict_state[3], self.desired_lon_acc_, None,
+                              np.tan(predict_state[4]) * 1.0 / self.wheelbase_len_,
+                              Tools.normalizeAngle(predict_state[4]))
 
         self.updateInternalState()
 
@@ -623,6 +649,7 @@ class IdealSteerModel:
         self.internal_state_[2] = self.state_.position_.theta_
         self.internal_state_[3] = self.state_.velocity_
         self.internal_state_[4] = self.state_.steer_
+
 
 # Forward simulation
 class ForwardExtender:
@@ -685,9 +712,10 @@ class ForwardExtender:
                     else:
                         assert False
 
-
                 # TODO: set vehicles speed limits from reference lane speed limit
-                desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_vehicles, desired_velocity)
+                desired_veh_state = self.forwardOnce(veh_id,
+                                                     ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_,
+                                                     cur_vehicles, desired_velocity)
 
                 # Cache
                 states_cache[desired_veh_state.id_] = desired_veh_state
@@ -736,8 +764,6 @@ class ForwardExtender:
         desired_vehicle_state = self.calculateDesiredState(cur_semantic_vehicle, steer, velocity, self.dt_)
 
         return desired_vehicle_state
-
-
 
     # Calculate steer
     def calculateSteer(self, semantic_vehicle):
@@ -804,7 +830,10 @@ class ForwardExtender:
 
         # Load parameters for ideal steer model
         # Wheelbase len need to fix, for different vehicles, their wheelbase length are different
-        ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration, Config.max_lon_acc_jerk, Config.max_lon_brake_jerk, Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs, Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
+        ideal_steer_model = IdealSteerModel(Config.wheelbase_length, IDM.acceleration, IDM.hard_braking_deceleration,
+                                            Config.max_lon_acc_jerk, Config.max_lon_brake_jerk,
+                                            Config.max_lat_acceleration_abs, Config.max_lat_jerk_abs,
+                                            Config.max_steer_angle_abs, Config.max_steer_rate, Config.max_curvature_abs)
         ideal_steer_model.setState(semantic_vehicle.vehicle_)
         ideal_steer_model.setControl([steer, velocity])
         ideal_steer_model.step(dt)
@@ -814,6 +843,7 @@ class ForwardExtender:
         predicted_state.time_stamp_ = semantic_vehicle.vehicle_.time_stamp_ + dt
 
         return predicted_state
+
 
 # Trajectory class, includes
 class Trajectory:
@@ -829,15 +859,19 @@ class Trajectory:
 
         # Judge collision
         for time_index in range(0, len(self.vehicle_states_)):
-            assert self.vehicle_states_[time_index].time_stamp_ == judge_trajectory.vehicle_states_[time_index].time_stamp_
+            assert self.vehicle_states_[time_index].time_stamp_ == judge_trajectory.vehicle_states_[
+                time_index].time_stamp_
 
             # Judge whether collision
-            is_collision = Rectangle.isCollision(self.vehicle_states_[time_index].rectangle_, judge_trajectory.vehicle_states_[time_index].rectangle_)
+            is_collision = Rectangle.isCollision(self.vehicle_states_[time_index].rectangle_,
+                                                 judge_trajectory.vehicle_states_[time_index].rectangle_)
             if is_collision:
                 safety_cost += 0.01 * abs(
-                    self.vehicle_states_[time_index].velocity_ - judge_trajectory.vehicle_states_[time_index].velocity_) * 0.5
+                    self.vehicle_states_[time_index].velocity_ - judge_trajectory.vehicle_states_[
+                        time_index].velocity_) * 0.5
 
         return safety_cost
+
 
 # IDM model
 # TODO: parameters need to adjust the situation
@@ -854,7 +888,8 @@ class IDM:
 
     # Calculate velocity using IDM model with linear function
     @staticmethod
-    def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt, desired_velocity):
+    def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt,
+                          desired_velocity):
 
         # Linear predict function
         def linearPredict(cur_s, leading_s, cur_velocity, leading_velocity, dt):
@@ -873,7 +908,9 @@ class IDM:
         # Predict 40 step with the time gap 0.01
         iteration_num = 40
         for _ in range(iteration_num):
-            predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = linearPredict(predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity, dt / iteration_num)
+            predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = linearPredict(
+                predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity,
+                dt / iteration_num)
 
         # # Single step predict
         # _, _, predicted_cur_velocity, _ = linearPredict(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, 0.4)
@@ -886,28 +923,30 @@ class IDM:
         # Calculate parameters
         a_free = IDM.acceleration * (1 - pow(cur_velocity / (desired_velocity + Config.EPS),
                                              IDM.exponent)) if cur_velocity <= desired_velocity else -IDM.comfortable_braking_deceleration * (
-                    1 - pow(desired_velocity / (cur_velocity + Config.EPS),
-                            IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
+                1 - pow(desired_velocity / (cur_velocity + Config.EPS),
+                        IDM.acceleration * IDM.exponent / IDM.comfortable_braking_deceleration))
         s_alpha = max(0.0 + Config.EPS, leading_s - cur_s - IDM.vehicle_length)
         z = (IDM.minimum_spacing + max(0.0, cur_velocity * IDM.desired_headaway_time + cur_velocity * (
-                    cur_velocity - leading_velocity) / (2.0 * np.sqrt(
+                cur_velocity - leading_velocity) / (2.0 * np.sqrt(
             IDM.acceleration * IDM.comfortable_braking_deceleration)))) / s_alpha
 
         # Calculate output acceleration
         if cur_velocity <= desired_velocity:
             a_out = IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free * (
-                        1 - pow(z, 2.0 * IDM.acceleration / (a_free + Config.EPS)))
+                    1 - pow(z, 2.0 * IDM.acceleration / (a_free + Config.EPS)))
         else:
             a_out = a_free + IDM.acceleration * (1 - pow(z, 2)) if z >= 1.0 else a_free
         a_out = max(min(IDM.acceleration, a_out), -IDM.hard_braking_deceleration)
 
         return a_out
 
+
 # Calculate a cost / reward for a policy
 class PolicyEvaluator:
     @classmethod
     def calculateCost(cls, ego_traj, sur_trajs, is_lane_changed):
-        return cls.calculateSafetyCost(ego_traj, sur_trajs) + cls.calculateLaneChangeCost(is_lane_changed) + cls.calculateEfficiencyCost(ego_traj)
+        return cls.calculateSafetyCost(ego_traj, sur_trajs) + cls.calculateLaneChangeCost(
+            is_lane_changed) + cls.calculateEfficiencyCost(ego_traj)
 
     @classmethod
     def calculateLaneChangeCost(cls, is_lane_changed):
@@ -925,3 +964,44 @@ class PolicyEvaluator:
     def calculateEfficiencyCost(cls, ego_traj):
         return 1.0 / (ego_traj.vehicle_states_[-1].velocity_ - ego_traj.vehicle_states_[0].velocity_)
 
+
+# Agent vehicle generator (without ego vehicle)
+class AgentGenerator:
+    def __init__(self, lanes_info):
+        left_lane_exist, right_lane_exist, center_left_exist, center_right_exist = lanes_info[0], lanes_info[1], \
+                                                                                   lanes_info[2], lanes_info[3]
+        self.y_boundary_up_ = 1.5 if not left_lane_exist else center_left_exist
+        self.y_boundary_low_ = -1.5 if not right_lane_exist else -center_right_exist
+
+    # Generate surround agents information
+    def generateSingleAgent(self, index):
+        agent_length = random.uniform(4.0, 6.0)
+        agent_width = random.uniform(1.8, 2.5)
+        agent_velocity = random.uniform(3.0, 10.0)
+        agent_acceleration = random.uniform(-1.0, 1.0)
+
+        x_position = random.uniform(0.0, 100.0)
+        y_position = random.uniform(self.y_boundary_low_, self.y_boundary_up_)
+        theta = random.uniform(-0.2, 0.2)
+        agent_position = PathPoint(x_position, y_position, theta)
+        this_vehicle = Vehicle(index, agent_position, agent_length, agent_width, agent_velocity,
+                               agent_acceleration, 0.0)
+        return this_vehicle
+
+    def generateAgents(self, num):
+        agents = {}
+        for i in range(1, num + 1):
+            this_vehicle = self.generateSingleAgent(i)
+            agents[this_vehicle.id_] = this_vehicle
+        return agents
+
+# Ego vehicle train information generator
+class EgoInfoGenerator:
+    @staticmethod
+    def generate():
+        # Define the constants
+        length = 5.0
+        width = 1.95
+        curvature = random.uniform(-0.1, 0.1)
+        steer = np.arctan(curvature * 2.8)
+        return Vehicle(0, PathPoint(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0), random.uniform(-0.2, 0.2)), length, width, random.uniform(0.0, 10.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)

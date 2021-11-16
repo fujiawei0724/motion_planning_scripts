@@ -11,13 +11,12 @@ The description of environment.
 import torch
 import copy
 import numpy as np
-
 from utils import *
 
 # Transform the state between world and neural network data
 class StateInterface:
     @staticmethod
-    def worldToNetData():
+    def worldToNetData(ego_veh, surround_veh):
         pass
 
     @staticmethod
@@ -220,8 +219,7 @@ class Environment:
 
 
 if __name__ == '__main__':
-    mp = {10 : 100, 20 : 520, 5 : 10}
-    print(len(mp))
+    pass
 
 
 

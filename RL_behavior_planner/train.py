@@ -16,6 +16,7 @@ from tensorboardX import SummaryWriter
 from Double_DQN import DQN
 from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
+from utils import *
 
 # Data in memory buffer
 Transition = namedtuple('Transion', ('state', 'action', 'next_state', 'reward'))
@@ -132,8 +133,19 @@ class DDQNBehaviorPlanner:
     # Train
     def train(self):
         # Environment information reset iteration
-        for episode in range(0, self._max_environment_reset_episode):
-            pass
+        for env_reset_episode in range(0, self._max_environment_reset_episode):
+            # Construct training environment
+            left_lane_exist = random.randint(0, 1)
+            right_lane_exist = random.randint(0, 1)
+            center_left_distance = random.uniform(3.0, 4.5)
+            center_right_distance = random.uniform(3.0, 4.5)
+            env = Environment()
+            env.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+
+            # Vehicles information reset iteration
+            for vehicles_reset_episode in range(0, self._max_vehicle_info_reset_num):
+                pass
+
 
 
 
