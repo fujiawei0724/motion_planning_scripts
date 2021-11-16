@@ -24,6 +24,34 @@ class StateInterface:
     def netDataToWorld():
         pass
 
+    # Calculate next state
+    @staticmethod
+    def calculateNextState(lane_info, ego_traj: Trajectory, surround_trajs):
+        next_state = np.zeros((93, ))
+        # Supple lane information
+        next_state[:4] = copy.deepcopy(lane_info)
+
+        # Supple ego vehicle information
+        ego_next_state = ego_traj.vehicle_states_[-1]
+        assert isinstance(ego_next_state, Vehicle)
+        next_state[4], next_state[5], next_state[6], next_state[7], next_state[8], next_state[9], next_state[10], next_state[11], next_state[12] = ego_next_state.position_.x_, ego_next_state.position_.y_, ego_next_state.position_.theta_, ego_next_state.length_, ego_next_state.width_, ego_next_state.velocity_, ego_next_state.acceleration_, ego_next_state.curvature_, ego_next_state.steer_
+
+        # Supple surround vehicles information in order
+        for i in range(1, len(surround_trajs) + 1):
+
+            # Get current surround vehicle's next state
+            cur_sur_traj = surround_trajs[i]
+            cur_veh_next_state = cur_sur_traj.vehicle_states_[-1]
+            assert isinstance(cur_veh_next_state, Vehicle)
+
+            # Get supple start index and load data
+            start_index = 13 + 8 * (i - 1)
+            next_state[start_index], next_state[start_index + 1], next_state[start_index + 2], next_state[start_index + 3], next_state[start_index + 4], next_state[start_index + 5], next_state[start_index + 6], next_state[start_index + 7] = 1, cur_veh_next_state.position_.x_, cur_veh_next_state.position_.y_, cur_veh_next_state.position_.theta_, cur_veh_next_state.length_, cur_veh_next_state.width_, cur_veh_next_state.velocity_, cur_veh_next_state.acceleration_
+
+        return next_state
+
+
+
 # Transform action between index and behavior sequence
 class ActionInterface:
 
@@ -111,6 +139,9 @@ class Environment:
         pass
 
     def loadLaneInfo(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance):
+        # Store next state for next state calculation
+        self.lane_info_ = np.array([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance])
+
         center_lane = None
         left_lane = None
         right_lane = None
@@ -180,12 +211,17 @@ class Environment:
         policy_cost = PolicyEvaluator.calculateCost(ego_traj, surround_trajs, is_final_lane_changed)
         reward = 1.0 / policy_cost
 
-        return reward
+        # ~Stage V: calculate next state
+        next_state = StateInterface.calculateNextState(self.lane_info_, ego_traj, surround_trajs)
+
+        return reward, next_state
+
 
 
 
 if __name__ == '__main__':
-    pass
+    mp = {10 : 100, 20 : 520, 5 : 10}
+    print(len(mp))
 
 
 
