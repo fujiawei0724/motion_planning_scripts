@@ -36,7 +36,7 @@ class Config:
     EPS = 1e-7
     look_ahead_min_distance = 3.0
     look_ahead_max_distance = 50.0
-    steer_control_gain = 1.5
+    steer_control_gain = 3.0
     lateral_velocity_threshold = 0.35
     lateral_distance_threshold = 0.4
     wheelbase_length = 2.8
@@ -604,7 +604,7 @@ class IdealSteerModel:
             predict_state = [0.0 for _ in range(5)]
             predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
             predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
-            predict_state[2] = np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
+            predict_state[2] = internal_state[2] + dt * np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
             predict_state[3] = internal_state[3] + dt * self.desired_lon_acc_
             predict_state[4] = internal_state[4] + dt * self.desired_steer_rate_
             return predict_state
@@ -669,6 +669,11 @@ class ForwardExtender:
         # Determine longitudinal behavior
         longitudinal_behavior = ego_potential_behavior_sequence.beh_seq_[0].lon_beh_
 
+        # Get vehicles initial velocities
+        initial_velocities = dict()
+        for veh_id, sem_veh in self.lane_server_.semantic_vehicles_.items():
+            initial_velocities[veh_id] = sem_veh.vehicle_.velocity_
+
         # Start forward simulation
         for step_index in range(0, num_steps_forward):
 
@@ -682,16 +687,15 @@ class ForwardExtender:
                 print('Predicting vehicle id: {}'.format(veh_id))
 
                 # Determine initial vehicles information
-                desired_velocity = veh.vehicle_.velocity_
+                desired_velocity = initial_velocities[veh_id]
                 # init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
-                    # TODO: determine ego vehicle desired velocity with different longitudinal behavior
                     if longitudinal_behavior == LongitudinalBehavior.Conservative:
                         desired_velocity = max(0.0, desired_velocity - 5.0)
                     elif longitudinal_behavior == LongitudinalBehavior.Normal:
-                        desired_velocity += 0.0
+                        desired_velocity = desired_velocity
                     elif longitudinal_behavior == LongitudinalBehavior.Aggressive:
-                        desired_velocity += 5.0
+                        desired_velocity = desired_velocity + 5.0
                     else:
                         assert False
 
@@ -813,6 +817,9 @@ class ForwardExtender:
             target_velocity = IDM.calculateVelocity(0.0, ego_leading_vehicles_distance,
                                                     ego_semantic_vehicle.vehicle_.velocity_,
                                                     leading_semantic_vehicle.vehicle_.velocity_, dt, desired_velocity)
+
+            if ego_semantic_vehicle.vehicle_.id_ == 0:
+                print('For vehicle {}, with leading vehicle, desired velocity: {}, target velocity: {}'.format(ego_semantic_vehicle.vehicle_.id_, desired_velocity, target_velocity))
 
         return target_velocity
 

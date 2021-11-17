@@ -40,7 +40,7 @@ class Config:
     EPS = 1e-7
     look_ahead_min_distance = 3.0
     look_ahead_max_distance = 50.0
-    steer_control_gain = 1.5
+    steer_control_gain = 3.0
     lateral_velocity_threshold = 0.35
     lateral_distance_threshold = 0.4
     wheelbase_length = 2.8
@@ -434,6 +434,11 @@ class ForwardExtender:
         # Determine number of forward update
         num_steps_forward = int(self.predict_time_span_ / self.dt_)
 
+        # Get vehicles initial velocities
+        initial_velocities = dict()
+        for veh_id, sem_veh in self.lane_server_.semantic_vehicles_.items():
+            initial_velocities[veh_id] = sem_veh.vehicle_.velocity_
+
         # Start forward simulation
         for step_index in range(0, num_steps_forward):
 
@@ -447,8 +452,8 @@ class ForwardExtender:
                 print('Predicting vehicle id: {}'.format(veh_id))
 
                 # Determine initial vehicles information
-                desired_velocity = veh.vehicle_.velocity_
-                init_time_stamp = veh.vehicle_.time_stamp_
+                desired_velocity = initial_velocities[veh_id]
+                # init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
                     # TODO: determine ego vehicle desired velocity
                     desired_velocity = Config.user_desired_velocity
@@ -591,7 +596,7 @@ class ForwardExtender:
 
 
 # Policy evaluate
-class PolicyEvaluater:
+class PolicyEvaluator:
     def __init__(self):
         # Initialize shell
         self.ego_potential_behavior_ = None
@@ -774,7 +779,7 @@ class IdealSteerModel:
             predict_state = [0.0 for _ in range(5)]
             predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
             predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
-            predict_state[2] = np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
+            predict_state[2] = internal_state[2] + dt * np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
             predict_state[3] = internal_state[3] + dt * self.desired_lon_acc_
             predict_state[4] = internal_state[4] + dt * self.desired_steer_rate_
             return predict_state

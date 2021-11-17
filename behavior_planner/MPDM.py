@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
     # Calculate cost for each policy
     # Construct policy evaluator
-    policy_evaluator = PolicyEvaluater()
+    policy_evaluator = PolicyEvaluator()
 
     # Calculate lane keeping cost
     policy_evaluator.loadData(LateralBehavior.LaneKeeping, lane_keeping_ego_trajectory,

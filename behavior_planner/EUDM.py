@@ -35,19 +35,20 @@ if __name__ == '__main__':
     ego_vehicle_polygon = Polygon(ego_vehicle.rectangle_.vertex_)
 
     # Initialize behavior generator
-    behavior_generator = BehaviorGenerator(10)
+    behavior_generator = BehaviorGenerator(50)
     behavior_set = behavior_generator.generateBehaviors()
 
     # Select a behavior sequence
+    # Set random seed
+    random.seed(16856)
     behavior_set_length = len(behavior_set)
     behavior_sequence = behavior_set[random.randint(0, behavior_set_length - 1)]
     behavior_sequence.print()
 
     # Generate surround agent vehicles
-    # Set random seed
-    random.seed(1908884969862826158515151158)
+
     agent_generator = AgentGenerator()
-    surround_vehicle_set = agent_generator.generateAgents(0)
+    surround_vehicle_set = agent_generator.generateAgents(10)
 
     # Construct lane server and semantic vehicles
     all_vehicle = [ego_vehicle] + list(surround_vehicle_set.values())
@@ -56,7 +57,7 @@ if __name__ == '__main__':
     lane_server.refresh(copy.deepcopy(lanes), copy.deepcopy(all_vehicle))
 
     # Construct forward extender
-    forward_extender = ForwardExtender(lane_server, 0.4, 4.0)
+    forward_extender = ForwardExtender(lane_server, 0.4, 20.0)
 
     # Calculate ego trajectory and surround trajectory for each behavior
     behavior_sequence_ego_trajectory, behavior_sequence_surround_trajectories = forward_extender.multiAgentForward(behavior_sequence)

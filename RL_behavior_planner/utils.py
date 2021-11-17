@@ -13,6 +13,7 @@ import math
 import random
 from enum import Enum, unique
 from collections import defaultdict
+from scipy.integrate import odeint
 
 
 # Define lateral behavior

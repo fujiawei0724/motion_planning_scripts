@@ -11,7 +11,7 @@ Load the trained network to generate behavior sequence and compare with branch c
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-
+from scipy.integrate import odeint
 from Double_DQN_net import DQN
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
@@ -72,16 +72,23 @@ class DDQNTester:
         print('Best rewards: {}'.format(best_rewards))
 
 if __name__ == '__main__':
-    plt.figure(0)
-    ax_1 = plt.axes()
-    ax_1.plot(np.arange(0, 10, 1), np.arange(0, 10, 1), c='r', linewidth=1.0)
-    plt.figure(1)
-    ax_2 = plt.axes()
-    ax_2.plot(np.arange(0, 10, 1), np.arange(0, 10, 1), c='g', linewidth=1.0)
+    start_state = np.array([2.0, 1.0, 0.2, 3.0, 0.04])
+    def deriv(state, t):
+        state_deriv = np.zeros((5, ))
+        state_deriv[0] = np.cos(state[2]) * state[3] * t
+        state_deriv[1] = np.sin(state[2]) * state[3] * t
+        state_deriv[2] = np.tan(state[4]) * state[3] / 2.85
+        state_deriv[3] = t * 0.5
+        state_deriv[4] = t * 0.1
 
-    plt.show()
+        return state_deriv
 
+    def predict(start_state, t):
+        return odeint(deriv, start_state, t)
 
+    t = np.linspace(0, 0.4, 2)
+    predicted_state = predict(start_state, t)
+    print(predicted_state)
 
 
 
