@@ -8,6 +8,9 @@
 Generate simulation data and use these data to train RL behavior planner.
 """
 
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 import random
 import numpy as np
 import torch
@@ -19,7 +22,7 @@ from environment import Environment, StateInterface, ActionInterface
 from utils import *
 
 # Data in memory buffer
-Transition = namedtuple('Transion', ('state', 'action', 'next_state', 'reward'))
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
 
 # Behavior planner
 class DDQNTrainer:
@@ -49,10 +52,9 @@ class DDQNTrainer:
         self._max_vehicle_info_reset_num = 1000
 
         # Define network parameters
-        # TODO: add state representation here
-        state_length = None
-        self._policy_net = DQN(None, 63).to(self._device)
-        self._target_net = DQN(None, 63).to(self._device)
+        state_length = 93
+        self._policy_net = DQN(93, 63).to(self._device)
+        self._target_net = DQN(93, 63).to(self._device)
         self._policy_net.apply(self._policy_net.initWeights)
         self._target_net.load_state_dict(self._policy_net.state_dict())
         self._target_net.eval()
@@ -67,8 +69,8 @@ class DDQNTrainer:
         self._steps_done = 0
 
         # Define model store path and log store path
-        self._save_path = '../weights/'
-        self._summary_writer = SummaryWriter('../logs/')
+        self._save_path = './weights/'
+        self._summary_writer = SummaryWriter('./logs/')
 
     # TODO: in our problem, what is environmental exploration mean? In other word, is continuous exploration valid?
     # Select action for train
@@ -76,40 +78,42 @@ class DDQNTrainer:
         if use_random:
             sample = random.random()
             eps_threshold = self._eps_start + (self._eps_end - self._eps_start) * min(self._steps_done / self._eps_decay, 1.0)
-            action_index = None
+            action = None
             if sample < eps_threshold:
-                action_index = random.choice(self._action)
+                action = torch.IntTensor([random.choice(self._action)]).to(self._device)
             else:
                 with torch.no_grad():
-                    action_index = self._policy_net(current_state.to(self._device)).max(1)[1]
-            return action_index
+                    action = self._policy_net(current_state.to(self._device)).max(1)[1]
+            return action
         else:
             sample = random.random()
             eps_threshold = 0.05
-            action_index = None
+            action = None
             if sample < eps_threshold:
-                action_index = random.choice(self._action)
+                action = torch.IntTensor([random.choice(self._action)]).to(self._device)
             else:
                 with torch.no_grad():
-                    action_index = self._policy_net(current_state.to(self._device)).max(1)[1]
-            return action_index
+                    action = self._policy_net(current_state.to(self._device)).max(1)[1]
+            return action
 
     # Optimization for net
     def optimizeProcess(self):
         # Load data from memory
         memory_batch = self._memory_replay.getBatch(self._batch_size)
         # Split data
-        state_batch, action_batch, next_state_batch, reward_batch = [], [], [], []
+        state_batch, action_batch, next_state_batch, reward_batch, done_batch = [], [], [], [], []
         for data in memory_batch:
             state_batch.append(data.state)
             action_batch.append(data.action)
             next_state_batch.append(data.next_state)
             reward_batch.append(data.reward)
+            done_batch.append(data.done)
         # Transform data
         state_batch = torch.cat(state_batch).to(self._device)
         action_batch = torch.cat(action_batch).unsqueeze(1).long().to(self._device)
         next_state_batch = torch.cat(next_state_batch).to(self._device)
         reward_batch = torch.Tensor(reward_batch).unsqueeze(1).to(self._device)
+        done_batch = torch.Tensor(done_batch).unsqueeze(1).to(self._device)
 
         # Forward calculate
         output = self._policy_net.forward(state_batch.to(self._device)).gather(1, action_batch)
@@ -119,7 +123,7 @@ class DDQNTrainer:
         target_q = self._target_net.forward(next_state_batch.to(self._device)).gather(1, next_state_action_predict_batch)
         # Calculate ground truth
         # In the premise that the MDP process has a infinite length
-        ground_truth = reward_batch + self._gamma * target_q
+        ground_truth = reward_batch + (1 - done_batch) * self._gamma * target_q
         # Loss calculation
         loss = torch.nn.SmoothL1Loss()(output, ground_truth)
         self._summary_writer.add_scalar('loss', loss, self._steps_done)
@@ -162,9 +166,9 @@ class DDQNTrainer:
                     # Generate behavior
                     action = self.selectAction(current_state_array)
                     # Execute selected action
-                    next_state_array, reward = env.runOnce(action)
+                    next_state_array, reward, done = env.runOnce(action)
                     # Store information to memory buffer
-                    self._memory_replay.update(Transition(current_state_array, action, next_state_array, reward))
+                    self._memory_replay.update(Transition(current_state_array, action, next_state_array, reward, done))
                     # Update environment and current state
                     current_state_array = next_state_array
                     env.load(current_state_array)
@@ -186,9 +190,12 @@ class DDQNTrainer:
                             self._summary_writer.add_scalar('evaluation', evaluate_reward, self._steps_done)
                             print('Step ', self._steps_done, ' Evaluation reward ', evaluate_reward)
                         self._steps_done += 1
+                    if done:
+                        break
 
                 # Calculate current calculation number
                 episode = env_reset_episode * self._max_vehicle_info_reset_num * self._max_iteration_num + vehicles_reset_episode * self._max_iteration_num
+                print('Episode: {}'.format(episode))
                 if episode % 20 == 0:
                     torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(episode % 3) + '.pt')
                     print('Episode: ', episode, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
@@ -223,7 +230,7 @@ class DDQNTrainer:
                 # Generate behavior
                 action = self.selectAction(current_state_array, False)
                 # Execute selected action
-                next_state_array, reward = env.runOnce(action)
+                next_state_array, reward, done = env.runOnce(action)
                 # Update environment and current state
                 current_state_array = next_state_array
                 env.load(current_state_array)
@@ -236,6 +243,7 @@ class DDQNTrainer:
 
 
 if __name__ == '__main__':
-    pass
+    trainer = DDQNTrainer()
+    trainer.train()
 
 

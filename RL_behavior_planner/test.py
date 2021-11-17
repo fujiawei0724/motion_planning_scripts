@@ -73,48 +73,6 @@ class DDQNTester:
         print('Best rewards: {}'.format(best_rewards))
 
 if __name__ == '__main__':
-
-    print('Odeint based method.')
-    start_time = time.time()
-    start_state = np.array([2.0, 1.0, 0.2, 3.0, 0.04])
-    def deriv(state, t):
-        state_deriv = np.zeros((5, ))
-        state_deriv[0] = np.cos(state[2]) * state[3]
-        state_deriv[1] = np.sin(state[2]) * state[3]
-        state_deriv[2] = np.tan(state[4]) * state[3] / 2.85
-        state_deriv[3] = 0.5
-        state_deriv[4] = 0.1
-        return state_deriv
-
-    def predict(start_state, t):
-        return odeint(deriv, start_state, t)
-
-    t = np.array([0.0, 0.4])
-    predicted_state = predict(start_state, t)
-    print(predicted_state)
-    end_time = time.time()
-    print('Odeint time consumption: {}'.format(end_time - start_time))
-
-    print('Linear calculation based method.')
-    start_state = time.time()
-    start_state = np.array([2.0, 1.0, 0.2, 3.0, 0.04])
-
-    def linearPredict(internal_state, dt):
-        predict_state = [0.0 for _ in range(5)]
-        predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
-        predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
-        predict_state[2] = internal_state[2] + dt * np.tan(internal_state[4]) * internal_state[3] / 2.85
-        predict_state[3] = internal_state[3] + dt * 0.5
-        predict_state[4] = internal_state[4] + dt * 0.1
-        return predict_state
-
-    current_state = copy.deepcopy(start_state)
-    for _ in range(400):
-        current_state = linearPredict(current_state, 0.001)
-
-    print(start_state)
-    print(current_state)
-    end_time = time.time()
-    print('Linear calculation time consumption: {}'.format(end_time - start_time))
+    pass
 
 

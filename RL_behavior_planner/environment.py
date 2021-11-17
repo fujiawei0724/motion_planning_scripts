@@ -16,25 +16,31 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
 from utils import *
 
+
 # Transform the state between world and neural network data
 class StateInterface:
     @staticmethod
     def worldToNetData(ego_veh, surround_veh):
-        state_array = np.zeros((89, ))
+        state_array = np.zeros((89,))
         # Supple ego vehicle information
-        state_array[0], state_array[1], state_array[2], state_array[3], state_array[4], state_array[5], state_array[6], state_array[7], state_array[8] = ego_veh.position_.x_, ego_veh.position_.y_, ego_veh.position_.theta_, ego_veh.length_, ego_veh.width_, ego_veh.velocity_, ego_veh.acceleration_, ego_veh.curvature_, ego_veh.steer_
-        
+        state_array[0], state_array[1], state_array[2], state_array[3], state_array[4], state_array[5], state_array[6], \
+        state_array[7], state_array[
+            8] = ego_veh.position_.x_, ego_veh.position_.y_, ego_veh.position_.theta_, ego_veh.length_, ego_veh.width_, ego_veh.velocity_, ego_veh.acceleration_, ego_veh.curvature_, ego_veh.steer_
+
         # Supple surround vehicles information
         for i in range(1, len(surround_veh) + 1):
             start_index = 9 + (i - 1) * 8
             cur_veh_state = surround_veh[i]
-            state_array[start_index], state_array[start_index + 1], state_array[start_index + 2], state_array[start_index + 3], state_array[start_index + 4], state_array[start_index + 5], state_array[start_index + 6], state_array[start_index + 7] = 1, cur_veh_state.position_.x_, cur_veh_state.position_.y_, cur_veh_state.position_.theta_, cur_veh_state.length_, cur_veh_state.width_, cur_veh_state.velocity_, cur_veh_state.acceleration_
+            state_array[start_index], state_array[start_index + 1], state_array[start_index + 2], state_array[
+                start_index + 3], state_array[start_index + 4], state_array[start_index + 5], state_array[
+                start_index + 6], state_array[
+                start_index + 7] = 1, cur_veh_state.position_.x_, cur_veh_state.position_.y_, cur_veh_state.position_.theta_, cur_veh_state.length_, cur_veh_state.width_, cur_veh_state.velocity_, cur_veh_state.acceleration_
 
         return state_array
 
     @staticmethod
     def worldToNetDataAll(lane_info, ego_veh, surround_veh):
-        all_state_array = np.zeros((93, ))
+        all_state_array = np.zeros((93,))
         all_state_array[:4] = lane_info[:]
         vehicles_state_array = StateInterface.worldToNetData(ego_veh, surround_veh)
         all_state_array[4:] = vehicles_state_array[:]
@@ -47,7 +53,7 @@ class StateInterface:
     # Calculate next state
     @staticmethod
     def calculateNextState(lane_info, ego_traj: Trajectory, surround_trajs):
-        next_state = np.zeros((93, ))
+        next_state = np.zeros((93,))
         # Supple lane information
         next_state[:4] = copy.deepcopy(lane_info)
 
@@ -65,10 +71,8 @@ class StateInterface:
         return next_state
 
 
-
 # Transform action between index and behavior sequence
 class ActionInterface:
-
     action_index = np.arange(0, 63, 1)
     action_info = np.array([[0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                             [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
@@ -133,8 +137,10 @@ class ActionInterface:
                             [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                             [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
                             [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+
     @classmethod
     def indexToBehSeq(cls, index):
+        index = index.item()
         assert index in cls.action_index
         return cls.action_info[index]
 
@@ -144,6 +150,7 @@ class ActionInterface:
         for index, cur_beh_seq_info in enumerate(cls.action_info):
             if (cur_beh_seq_info == beh_seq_info).all():
                 return index
+
 
 # Construct the environment for reward calculation
 # Environment includes the lane information and vehicle information (ego and surround)
@@ -166,7 +173,10 @@ class Environment:
         all_state_array = np.array(all_state_array)
 
         # Load lanes data
-        left_lane_exist, right_lane_exist, center_left_distance, center_right_distance = all_state_array[0], all_state_array[1], all_state_array[2], all_state_array[3]
+        left_lane_exist, right_lane_exist, center_left_distance, center_right_distance = all_state_array[0], \
+                                                                                         all_state_array[1], \
+                                                                                         all_state_array[2], \
+                                                                                         all_state_array[3]
         self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
 
         # Load vehicles data
@@ -215,14 +225,17 @@ class Environment:
         self.surround_vehicle_ = None
 
         # Load ego vehicle, ego vehicle's state could be represented by 9 values
-        self.ego_vehicle_ = Vehicle(0, PathPoint(ego_info[0], ego_info[1], ego_info[2]), ego_info[3], ego_info[4], ego_info[5], ego_info[6], 0.0, ego_info[7], ego_info[8])
+        self.ego_vehicle_ = Vehicle(0, PathPoint(ego_info[0], ego_info[1], ego_info[2]), ego_info[3], ego_info[4],
+                                    ego_info[5], ego_info[6], 0.0, ego_info[7], ego_info[8])
 
         # Load surround vehicles, for each surround vehicle, its state could by denoted by 8 values, compared with ego vehicle, a flag is added to denote whether this surround vehicle is exist, then the curvature and steer information are deleted because of the limits of perception
         self.surround_vehicle_ = dict()
         for index, single_sur_info in enumerate(sur_info):
             if single_sur_info[0] == 1:
-                self.surround_vehicle_[index + 1] = Vehicle(index + 1, PathPoint(single_sur_info[1], single_sur_info[2], single_sur_info[3]), single_sur_info[4], single_sur_info[5], single_sur_info[6], single_sur_info[7], 0.0, 0.0, 0.0)
-
+                self.surround_vehicle_[index + 1] = Vehicle(index + 1, PathPoint(single_sur_info[1], single_sur_info[2],
+                                                                                 single_sur_info[3]),
+                                                            single_sur_info[4], single_sur_info[5], single_sur_info[6],
+                                                            single_sur_info[7], 0.0, 0.0, 0.0)
 
     # Load behavior sequence
     # behavior sequence is a array has 11 elements, [0] denotes the longitudinal behavior, [1:11] denotes the corresponding latitudinal behavior in each time stamps respectively
@@ -232,12 +245,14 @@ class Environment:
 
         # ~Stage I: Transform the behavior sequence
         beh_seq = []
-        print('Longitudinal behavior: {}'.format(LongitudinalBehavior(behavior_sequence_info[0])))
+        # print('Longitudinal behavior: {}'.format(LongitudinalBehavior(behavior_sequence_info[0])))
         for i in range(1, 11):
-            beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]), LongitudinalBehavior(behavior_sequence_info[0])))
-            print('Latitudinal behavior: {}'.format(LateralBehavior(behavior_sequence_info[i])))
+            beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]),
+                                           LongitudinalBehavior(behavior_sequence_info[0])))
+            # print('Latitudinal behavior: {}'.format(LateralBehavior(behavior_sequence_info[i])))
         behavior_sequence = BehaviorSequence(beh_seq)
-        is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
+        is_final_lane_changed = True if behavior_sequence.beh_seq_[
+                                            -1].lat_beh_ != LateralBehavior.LaneKeeping else False
         if is_final_lane_changed:
             if behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeLeft:
                 if LaneId.LeftLane not in self.lane_server_.lanes_:
@@ -281,20 +296,26 @@ class Environment:
             center_lane = self.lane_server_.lanes_[LaneId.CenterLane]
             center_lane_points_array = Visualization.transformPathPointsToArray(center_lane.path_points_)
             ax.plot(center_lane_points_array[:, 0], center_lane_points_array[:, 1], c='m', linewidth=1.0)
-            ax.plot(center_lane.left_boundary_points_[:, 0], center_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
-            ax.plot(center_lane.right_boundary_points_[:, 0], center_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+            ax.plot(center_lane.left_boundary_points_[:, 0], center_lane.left_boundary_points_[:, 1], c='black',
+                    ls='--', linewidth=1.0)
+            ax.plot(center_lane.right_boundary_points_[:, 0], center_lane.right_boundary_points_[:, 1], c='black',
+                    ls='--', linewidth=1.0)
         if LaneId.LeftLane in self.lane_server_.lanes_:
             left_lane = self.lane_server_.lanes_[LaneId.LeftLane]
             left_lane_points_array = Visualization.transformPathPointsToArray(left_lane.path_points_)
             ax.plot(left_lane_points_array[:, 0], left_lane_points_array[:, 1], c='m', linewidth=1.0)
-            ax.plot(left_lane.left_boundary_points_[:, 0], left_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
-            ax.plot(left_lane.right_boundary_points_[:, 0], left_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+            ax.plot(left_lane.left_boundary_points_[:, 0], left_lane.left_boundary_points_[:, 1], c='black', ls='--',
+                    linewidth=1.0)
+            ax.plot(left_lane.right_boundary_points_[:, 0], left_lane.right_boundary_points_[:, 1], c='black', ls='--',
+                    linewidth=1.0)
         if LaneId.RightLane in self.lane_server_.lanes_:
             right_lane = self.lane_server_.lanes_[LaneId.RightLane]
             right_lane_points_array = Visualization.transformPathPointsToArray(right_lane.path_points_)
             ax.plot(right_lane_points_array[:, 0], right_lane_points_array[:, 1], c='m', linewidth=1.0)
-            ax.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
-            ax.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black', ls='--', linewidth=1.0)
+            ax.plot(right_lane.left_boundary_points_[:, 0], right_lane.left_boundary_points_[:, 1], c='black', ls='--',
+                    linewidth=1.0)
+            ax.plot(right_lane.right_boundary_points_[:, 0], right_lane.right_boundary_points_[:, 1], c='black',
+                    ls='--', linewidth=1.0)
 
         # Visualization vehicles
         ego_vehilce = copy.deepcopy(self.ego_vehicle_)
@@ -315,7 +336,7 @@ if __name__ == '__main__':
     center_right_distance = 3.5
     # Construct ego vehicle and surround vehicles randomly
     ego_vehicle = EgoInfoGenerator.generateOnce()
-    ego_vehicle.print()
+    # ego_vehicle.print()
     surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance,
                                                  center_right_distance)
     surround_vehicles = surround_vehicles_generator.generateAgents(10)
@@ -339,9 +360,4 @@ if __name__ == '__main__':
     env.visualization(ax_2)
     plt.axis('equal')
 
-
     plt.show()
-
-
-
-
