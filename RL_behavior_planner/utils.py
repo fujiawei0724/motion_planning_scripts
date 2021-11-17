@@ -37,7 +37,7 @@ class Config:
     EPS = 1e-7
     look_ahead_min_distance = 3.0
     look_ahead_max_distance = 50.0
-    steer_control_gain = 1.5
+    steer_control_gain = 3.0
     lateral_velocity_threshold = 0.35
     lateral_distance_threshold = 0.4
     wheelbase_length = 2.8
@@ -474,6 +474,20 @@ class Vehicle:
         # Construct occupied rectangle
         self.rectangle_ = Rectangle(position, length, width)
 
+    # DEBUG
+    def print(self):
+        print('Id: {}'.format(self.id_))
+        print('Position x: {}'.format(self.position_.x_))
+        print('Position y: {}'.format(self.position_.y_))
+        print('Theta: {}'.format(self.position_.theta_))
+        print('Length: {}'.format(self.length_))
+        print('Width: {}'.format(self.width_))
+        print('Velocity: {}'.format(self.velocity_))
+        print('Acceleration: {}'.format(self.acceleration_))
+        print('Time stamp: {}'.format(self.time_stamp_))
+        print('Curvature: {}'.format(self.curvature_))
+        print('Steer: {}'.format(self.steer_))
+
 
 class SemanticVehicle:
     def __init__(self, vehicle, potential_behaviors, nearest_lane, reference_lane=None):
@@ -621,7 +635,7 @@ class IdealSteerModel:
         self.control_[0] = Tools.normalizeAngle(self.state_.steer_ + self.desired_steer_rate_ * dt)
 
     # Forward once
-    def step(self, dt):
+    def step(self, dt, linear_prediction=False):
         self.state_.steer_ = np.arctan(self.state_.curvature_ * self.wheelbase_len_)
         self.updateInternalState()
         self.control_[1] = max(0.0, self.control_[1])
@@ -635,31 +649,49 @@ class IdealSteerModel:
         # print('Final desired longitudinal acceleration: {}'.format(self.desired_lon_acc_))
         self.desired_steer_rate_ = Tools.normalizeAngle(self.control_[0] - self.state_.steer_)
 
-        # Linear predict function
-        # Probably need to fix bug
-        def linearPredict(internal_state, dt):
-            predict_state = [0.0 for _ in range(5)]
-            predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
-            predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
-            predict_state[2] = np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
-            predict_state[3] = internal_state[3] + dt * self.desired_lon_acc_
-            predict_state[4] = internal_state[4] + dt * self.desired_steer_rate_
-            return predict_state
+        predict_state = None
+        if linear_prediction:
+            # Linear predict function
+            # Probably need to fix bug
+            def linearPredict(internal_state, dt):
+                predict_state = [0.0 for _ in range(5)]
+                predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
+                predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
+                predict_state[2] = internal_state[2] + dt * np.tan(internal_state[4]) * internal_state[
+                    3] / self.wheelbase_len_
+                predict_state[3] = internal_state[3] + dt * self.desired_lon_acc_
+                predict_state[4] = internal_state[4] + dt * self.desired_steer_rate_
+                return predict_state
 
-        # Generate predict state
-        predict_state = copy.deepcopy(self.internal_state_)
-        iteration_num = 40
-        for _ in range(0, iteration_num):
-            predict_state = linearPredict(predict_state, dt / iteration_num)
+            # Generate predict state
+            predict_state = copy.deepcopy(self.internal_state_)
+            iteration_num = 40
+            for _ in range(0, iteration_num):
+                predict_state = linearPredict(predict_state, dt / iteration_num)
+
+        else:
+            # Integration based prediction
+            # Define derivative
+            def deriv(state, t):
+                state_deriv = np.zeros((5,))
+                state_deriv[0] = np.cos(state[2]) * state[3]
+                state_deriv[1] = np.sin(state[2]) * state[3]
+                state_deriv[2] = np.tan(state[4]) * state[3] / self.wheelbase_len_
+                state_deriv[3] = self.desired_lon_acc_
+                state_deriv[4] = self.desired_steer_rate_
+                return state_deriv
+
+            def predict(start_state, t):
+                return odeint(deriv, start_state, t)
+
+            t = np.array([0.0, dt])
+            start_state = copy.deepcopy(self.internal_state_)
+            predict_state_sequence = predict(start_state, t)
+            predict_state = predict_state_sequence[1]
+
+        assert predict_state is not None
+
         predict_state_position = PathPoint(predict_state[0], predict_state[1], Tools.normalizeAngle(predict_state[2]))
-
-        # self.state_.position_.x_ = predict_state[0]
-        # self.state_.position_.y_ = predict_state[1]
-        # self.state_.position_.theta_ = Tools.normalizeAngle(predict_state[2])
-        # self.state_.velocity_ = predict_state[3]
-        # self.state_.steer_ = Tools.normalizeAngle(predict_state[4])
-        # self.state_.curvature_ = np.tan(self.state_.steer_) * 1.0 / self.wheelbase_len_
-        # self.state_.acceleration_ = self.desired_lon_acc_
 
         self.state_ = Vehicle(self.state_.id_, predict_state_position, self.state_.length_, self.state_.width_,
                               predict_state[3], self.desired_lon_acc_, None,
@@ -712,6 +744,11 @@ class ForwardExtender:
         # Determine longitudinal behavior
         longitudinal_behavior = ego_potential_behavior_sequence.beh_seq_[0].lon_beh_
 
+        # Get the initial velocities of all vehicles
+        initial_velocities = dict()
+        for veh_id, veh in vehicles.items():
+            initial_velocities[veh_id] = veh.velocity_
+
         # Start forward simulation
         for step_index in range(0, num_steps_forward):
 
@@ -725,10 +762,9 @@ class ForwardExtender:
                 print('Predicting vehicle id: {}'.format(veh_id))
 
                 # Determine initial vehicles information
-                desired_velocity = veh.velocity_
+                desired_velocity = initial_velocities[veh_id]
                 # init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
-                    # TODO: determine ego vehicle desired velocity with different longitudinal behavior
                     if longitudinal_behavior == LongitudinalBehavior.Conservative:
                         desired_velocity = max(0.0, desired_velocity - 5.0)
                     elif longitudinal_behavior == LongitudinalBehavior.Normal:
@@ -880,6 +916,7 @@ class Trajectory:
 
         # Initialize safety cost
         safety_cost = 0.0
+        final_collision = False
 
         # Judge collision
         for time_index in range(0, len(self.vehicle_states_)):
@@ -893,8 +930,9 @@ class Trajectory:
                 safety_cost += 0.01 * abs(
                     self.vehicle_states_[time_index].velocity_ - judge_trajectory.vehicle_states_[
                         time_index].velocity_) * 0.5
+                final_collision = True
 
-        return safety_cost
+        return safety_cost, final_collision
 
 
 # IDM model
@@ -913,32 +951,54 @@ class IDM:
     # Calculate velocity using IDM model with linear function
     @staticmethod
     def calculateVelocity(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, dt,
-                          desired_velocity):
+                          desired_velocity, linear_prediction=False):
+        predicted_cur_velocity = None
+        if linear_prediction:
+            # Linear predict function
+            def linearPredict(cur_s, leading_s, cur_velocity, leading_velocity, dt):
+                # Calculate responding acceleration
+                acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity)
+                acc = max(acc, -min(IDM.hard_braking_deceleration, cur_velocity / dt))
+                next_cur_s = cur_s + cur_velocity * dt + 0.5 * acc * dt * dt
+                next_leading_s = leading_s + leading_velocity * dt
+                next_cur_velocity = cur_velocity + acc * dt
+                next_leading_velocity = leading_velocity
+                return next_cur_s, next_leading_s, next_cur_velocity, next_leading_velocity
 
-        # Linear predict function
-        def linearPredict(cur_s, leading_s, cur_velocity, leading_velocity, dt):
-            # Calculate responding acceleration
-            acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity)
-            acc = max(acc, -min(IDM.hard_braking_deceleration, cur_velocity / dt))
-            next_cur_s = cur_s + cur_velocity * dt + 0.5 * acc * dt * dt
-            next_leading_s = leading_s + leading_velocity * dt
-            next_cur_velocity = cur_velocity + acc * dt
-            next_leading_velocity = leading_velocity
-            return next_cur_s, next_leading_s, next_cur_velocity, next_leading_velocity
+            # State cache
+            predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity
 
-        # State cache
-        predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity
+            # Predict 40 step with the time gap 0.01
+            iteration_num = 40
+            for _ in range(iteration_num):
+                predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = linearPredict(
+                    predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity,
+                    dt / iteration_num)
+        else:
+            # Define derivative
+            def deriv(state, t):
+                state_deriv = np.zeros((4, ))
+                # Split state
+                cur_s, leading_s, cur_velocity, leading_velocity = state[0], state[1], state[2], state[3]
+                # Calculate responding acceleration
+                acc = IDM.calculateAcceleration(cur_s, leading_s, cur_velocity, leading_velocity, desired_velocity)
+                cur_s_deriv = cur_velocity + 0.5 * acc * t
+                leading_s_deriv = leading_velocity
+                cur_velocity_deriv = acc
+                leading_velocity_deriv = 0.0
+                state_deriv[0], state_deriv[1], state_deriv[2], state_deriv[3] = cur_s_deriv, leading_s_deriv, cur_velocity_deriv, leading_velocity_deriv
+                return state_deriv
 
-        # Predict 40 step with the time gap 0.01
-        iteration_num = 40
-        for _ in range(iteration_num):
-            predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity = linearPredict(
-                predicted_cur_s, predicted_leading_s, predicted_cur_velocity, predicted_leading_velocity,
-                dt / iteration_num)
+            def predict(start_state, t):
+                return odeint(deriv, start_state, t)
 
-        # # Single step predict
-        # _, _, predicted_cur_velocity, _ = linearPredict(input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity, 0.4)
+            t = np.array([0.0, dt])
+            start_state = np.array([input_cur_s, input_leading_s, input_cur_velocity, input_leading_velocity])
+            predict_state_sequence = predict(start_state, t)
+            predict_state = predict_state_sequence[1]
+            predicted_cur_velocity = predict_state[2]
 
+        assert predicted_cur_velocity is not None
         return predicted_cur_velocity
 
     # Calculate acceleration using IDM model
@@ -968,9 +1028,11 @@ class IDM:
 # Calculate a cost / reward for a policy
 class PolicyEvaluator:
     @classmethod
-    def calculateCost(cls, ego_traj, sur_trajs, is_lane_changed):
-        return cls.calculateSafetyCost(ego_traj, sur_trajs) + cls.calculateLaneChangeCost(
-            is_lane_changed) + cls.calculateEfficiencyCost(ego_traj)
+    def praise(cls, ego_traj, sur_trajs, is_lane_changed):
+        safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs)
+        lane_change_cost = cls.calculateLaneChangeCost(is_lane_changed)
+        efficiency_cost = cls.calculateEfficiencyCost(ego_traj)
+        return safety_cost + lane_change_cost + efficiency_cost, is_collision
 
     @classmethod
     def calculateLaneChangeCost(cls, is_lane_changed):
@@ -979,9 +1041,13 @@ class PolicyEvaluator:
     @classmethod
     def calculateSafetyCost(cls, ego_traj, sur_trajs):
         safety_cost = 0.0
+        is_collision = False
         for _, judge_sur_traj in sur_trajs.items():
-            safety_cost += ego_traj.calculateSafetyCost(judge_sur_traj)
-        return safety_cost
+            cur_safety_cost, is_cur_collision = ego_traj.calculateSafetyCost(judge_sur_traj)
+            safety_cost += cur_safety_cost
+            if is_cur_collision:
+                is_collision = True
+        return safety_cost, is_collision
 
     # TODO: parameters need to change
     @classmethod
@@ -1004,7 +1070,7 @@ class AgentGenerator:
 
         x_position = random.uniform(0.0, 100.0)
         y_position = random.uniform(self.y_boundary_low_, self.y_boundary_up_)
-        theta = random.uniform(-0.2, 0.2)
+        theta = random.uniform(-0.1, 0.1)
         agent_position = PathPoint(x_position, y_position, theta)
         this_vehicle = Vehicle(index, agent_position, agent_length, agent_width, agent_velocity,
                                agent_acceleration, 0.0)
@@ -1024,9 +1090,9 @@ class EgoInfoGenerator:
         # Define the constants
         length = 5.0
         width = 1.95
-        curvature = random.uniform(-0.1, 0.1)
+        curvature = 0.02
         steer = np.arctan(curvature * 2.8)
-        return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.2, 0.2)), length, width, random.uniform(0.0, 10.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
+        return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.1, 0.1)), length, width, random.uniform(5.0, 7.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
 
 if __name__ == '__main__':
     pass

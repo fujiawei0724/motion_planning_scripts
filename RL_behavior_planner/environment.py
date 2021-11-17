@@ -227,12 +227,24 @@ class Environment:
     # Load behavior sequence
     # behavior sequence is a array has 11 elements, [0] denotes the longitudinal behavior, [1:11] denotes the corresponding latitudinal behavior in each time stamps respectively
     def simulateBehSeq(self, behavior_sequence_info):
+        # Record if done, if there is collision in trajectories or ego vehicle driving forward an nonexistent lane
+        done = False
 
         # ~Stage I: Transform the behavior sequence
         beh_seq = []
+        print('Longitudinal behavior: {}'.format(LongitudinalBehavior(behavior_sequence_info[0])))
         for i in range(1, 11):
             beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]), LongitudinalBehavior(behavior_sequence_info[0])))
+            print('Latitudinal behavior: {}'.format(LateralBehavior(behavior_sequence_info[i])))
         behavior_sequence = BehaviorSequence(beh_seq)
+        is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
+        if is_final_lane_changed:
+            if behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeLeft:
+                if LaneId.LeftLane not in self.lane_server_.lanes_:
+                    done = True
+            elif behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeRight:
+                if LaneId.RightLane not in self.lane_server_.lanes_:
+                    done = True
 
         # ~Stage II: Construct all vehicles
         vehicles = copy.deepcopy(self.surround_vehicle_)
@@ -241,22 +253,26 @@ class Environment:
         # ~Stage III: Construct forward extender and predict result trajectories for all vehicles (ego and surround)
         forward_extender = ForwardExtender(self.lane_server_, 0.4, 4.0)
         ego_traj, surround_trajs = forward_extender.multiAgentForward(behavior_sequence, vehicles)
-        is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
 
         # ~Stage IV: calculate cost and transform to reward
-        policy_cost = PolicyEvaluator.calculateCost(ego_traj, surround_trajs, is_final_lane_changed)
+        policy_cost, is_collision = PolicyEvaluator.praise(ego_traj, surround_trajs, is_final_lane_changed)
         reward = 1.0 / policy_cost
+        if is_collision:
+            done = True
 
         # ~Stage V: calculate next state
         next_state = StateInterface.calculateNextState(self.lane_info_, ego_traj, surround_trajs)
 
-        return reward, next_state
+        if done:
+            return -100.0, next_state, done
+
+        return reward, next_state, done
 
     # Run with a action index
     def runOnce(self, action):
         beh_seq = ActionInterface.indexToBehSeq(action)
-        reward, next_state = self.simulateBehSeq(beh_seq)
-        return reward, next_state
+        reward, next_state, done = self.simulateBehSeq(beh_seq)
+        return reward, next_state, done
 
     # DEBUG: visualization
     def visualization(self, ax):
@@ -294,14 +310,15 @@ if __name__ == '__main__':
     random.seed(1555)
     # Load environment data randomly
     left_lane_exist = random.randint(0, 1)
-    right_lane_exist = random.randint(0, 1)
+    right_lane_exist = 0
     center_left_distance = random.uniform(3.0, 4.5)
-    center_right_distance = random.uniform(3.0, 4.5)
+    center_right_distance = 3.5
     # Construct ego vehicle and surround vehicles randomly
     ego_vehicle = EgoInfoGenerator.generateOnce()
+    ego_vehicle.print()
     surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance,
                                                  center_right_distance)
-    surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+    surround_vehicles = surround_vehicles_generator.generateAgents(10)
     # Transform to state array
     current_state_array = StateInterface.worldToNetDataAll(
         [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle,
@@ -313,12 +330,16 @@ if __name__ == '__main__':
     ax = plt.axes()
     env.visualization(ax)
     plt.axis('equal')
-    reward, next_state_array = env.runOnce(56)
+    reward, next_state_array, done = env.runOnce(26)
+    print('reward: {}, done: {}'.format(reward, done))
+
     plt.figure(1)
     ax_2 = plt.axes()
     env.load(next_state_array)
     env.visualization(ax_2)
     plt.axis('equal')
+
+
     plt.show()
 
 

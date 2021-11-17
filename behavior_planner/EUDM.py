@@ -31,10 +31,15 @@ if __name__ == '__main__':
     right_lane_points_array = Visualization.transformPathPointsToArray(right_lane.path_points_)
 
     # Initialize ego vehicle
-    ego_vehicle = Vehicle(0, PathPoint(20.0, 0.0, 0.0), 5.0, 2.0, 5.0, 0.0, 0.0)
+    # Note that the initial curvature and steer must be a normal and conservative value
+    # Absolute value of curvature should le limited to 0.05
+    curvature = -0.05
+    steer = np.arctan(curvature * 2.8)
+    ego_vehicle = Vehicle(0, PathPoint(20.0, 0.0, 0.0), 5.0, 2.0, 5.0, 0.0, 0.0, curvature, steer)
     ego_vehicle_polygon = Polygon(ego_vehicle.rectangle_.vertex_)
 
     # Initialize behavior generator
+    # The behavior length is set with 50 to test the model
     behavior_generator = BehaviorGenerator(50)
     behavior_set = behavior_generator.generateBehaviors()
 
@@ -46,7 +51,6 @@ if __name__ == '__main__':
     behavior_sequence.print()
 
     # Generate surround agent vehicles
-
     agent_generator = AgentGenerator()
     surround_vehicle_set = agent_generator.generateAgents(10)
 
@@ -121,7 +125,7 @@ if __name__ == '__main__':
 
         # Visualization each step
         plt.axis('equal')
-        plt.xlim(0, 150)
+        plt.xlim(0, 250)
         plt.pause(0.5)
 
     plt.show()
