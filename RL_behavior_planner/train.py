@@ -10,9 +10,7 @@ Generate simulation data and use these data to train RL behavior planner.
 
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-import random
-import numpy as np
+import time
 import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
@@ -38,10 +36,11 @@ class DDQNTrainer:
         # TODO: adjust parameters
         self._eps_start = 1
         self._eps_end = 0.1
-        self._eps_decay= 1000000
+        self._eps_decay = 1000000
         self._gamma = 0.99
         self._batch_size = 32
-        self._buffer_full = 50000
+        self._buffer_full = 32
+        self._buffer_size = 50000
         self._target_update = 10000
         self._optimize_frequency = 4
         self._evaluation_frequency = 100000
@@ -63,13 +62,17 @@ class DDQNTrainer:
         self._optimizer = torch.optim.Adam(self._policy_net.parameters(), lr=0.0000625, eps=1.5e-4)
 
         # Define memory buffer
-        self._memory_replay = MemoryReplay(self._batch_size)
+        self._memory_replay = MemoryReplay(self._buffer_size)
 
-        # Record iteration number
+        # Record optimization iteration number
         self._steps_done = 0
+        # Record calculation iteration number
+        self._calculation_done = 0
 
         # Define model store path and log store path
         self._save_path = './weights/'
+        if not os.path.exists(self._save_path):
+            os.makedirs(self._save_path)
         self._summary_writer = SummaryWriter('./logs/')
 
     # TODO: in our problem, what is environmental exploration mean? In other word, is continuous exploration valid?
@@ -162,11 +165,14 @@ class DDQNTrainer:
                 total_reward = 0
 
                 # Simulate a round, each round include three behavior sequences
-                for _ in range(0, self._max_iteration_num):
+                for i in range(0, self._max_iteration_num):
+                    print('Start calculation epoch: {}'.format(self._calculation_done))
+                    self._calculation_done += 1
+
                     # Generate behavior
                     action = self.selectAction(current_state_array)
                     # Execute selected action
-                    next_state_array, reward, done = env.runOnce(action)
+                    reward, next_state_array, done = env.runOnce(action)
                     # Store information to memory buffer
                     self._memory_replay.update(Transition(current_state_array, action, next_state_array, reward, done))
                     # Update environment and current state
@@ -194,11 +200,9 @@ class DDQNTrainer:
                         break
 
                 # Calculate current calculation number
-                episode = env_reset_episode * self._max_vehicle_info_reset_num * self._max_iteration_num + vehicles_reset_episode * self._max_iteration_num
-                print('Episode: {}'.format(episode))
-                if episode % 20 == 0:
-                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(episode % 3) + '.pt')
-                    print('Episode: ', episode, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
+                if (env_reset_episode * self._max_vehicle_info_reset_num + vehicles_reset_episode) % 20 == 0:
+                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(env_reset_episode % 3) + '.pt')
+                    print('Episode: ', env_reset_episode * self._max_vehicle_info_reset_num + vehicles_reset_episode, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
                 self._summary_writer.add_scalar('reward', total_reward, self._steps_done)
 
     # Evaluate training

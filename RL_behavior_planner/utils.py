@@ -8,6 +8,7 @@
 The components for RL behavior planner.
 """
 import numpy as np
+import time
 import copy
 import math
 import random
@@ -100,6 +101,13 @@ class Tools:
             return 0
         else:
             return min(proj_1[1], proj_2[1]) - max(proj_1[0], proj_2[0])
+
+    # Refresh vehicles information in semantic vehicles
+    @staticmethod
+    def refreshSemanticVehicles(semantic_vehicles, vehicles):
+        for veh_id, veh in vehicles.items():
+            semantic_vehicles[veh_id].vehicle_ = veh
+
 
 
 # Visualization
@@ -749,6 +757,9 @@ class ForwardExtender:
         for veh_id, veh in vehicles.items():
             initial_velocities[veh_id] = veh.velocity_
 
+        # Get initial semantic vehicles
+        cur_semantic_vehicles = self.lane_server_.getSemanticVehicles(vehicles)
+
         # Start forward simulation
         for step_index in range(0, num_steps_forward):
 
@@ -759,7 +770,7 @@ class ForwardExtender:
 
             for veh_id, veh in cur_vehicles.items():
 
-                print('Predicting vehicle id: {}'.format(veh_id))
+                # print('Predicting vehicle id: {}'.format(veh_id))
 
                 # Determine initial vehicles information
                 desired_velocity = initial_velocities[veh_id]
@@ -775,13 +786,14 @@ class ForwardExtender:
                         assert False
 
                 # TODO: set vehicles speed limits from reference lane speed limit
-                desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_vehicles, desired_velocity)
+                desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_semantic_vehicles, desired_velocity)
 
                 # Cache
                 states_cache[desired_veh_state.id_] = desired_veh_state
 
             # Update current vehicle information
             cur_vehicles = copy.deepcopy(states_cache)
+            Tools.refreshSemanticVehicles(cur_semantic_vehicles, cur_vehicles)
 
             # Store trajectories
             for vehicle_id, state in states_cache.items():
@@ -806,10 +818,9 @@ class ForwardExtender:
 
     # Forward once from current state
     # Note that vehicles include ego vehicle
-    def forwardOnce(self, cur_id, ego_potential_behavior, vehicles, desired_velocity):
+    def forwardOnce(self, cur_id, ego_potential_behavior, semantic_vehicles, desired_velocity):
         # Calculate all semantic vehicles and set ego potential behavior
-        semantic_vehicles = self.lane_server_.getSemanticVehicles(vehicles)
-        semantic_vehicles[0] = self.lane_server_.resetEgoSemanticVehicle(vehicles[0], ego_potential_behavior)
+        semantic_vehicles[0] = self.lane_server_.resetEgoSemanticVehicle(semantic_vehicles[0].vehicle_, ego_potential_behavior)
 
         # Get current semantic vehicle
         cur_semantic_vehicle = semantic_vehicles[cur_id]

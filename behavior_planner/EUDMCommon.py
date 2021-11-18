@@ -9,6 +9,7 @@ This code contains the components for EUDM behavior planner.
 """
 
 import numpy as np
+import time
 import copy
 import math
 import random
@@ -769,8 +770,10 @@ class ForwardExtender:
                 #     other_vehicle_set[veh_other_id] = v_other
 
                 # TODO: set vehicles speed limits from reference lane speed limit
-                desired_veh_state = self.forwardOnce(ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_,
-                                                     veh.vehicle_, desired_velocity)
+                single_desired_state_calculation_start_time = time.time()
+                desired_veh_state = self.forwardOnce(ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, veh.vehicle_, desired_velocity)
+                single_desired_state_calculation_end_time = time.time()
+                print('Single desired state calculation time consumption: {}'.format(single_desired_state_calculation_end_time - single_desired_state_calculation_start_time))
 
                 # Cache
                 states_cache[desired_veh_state.id_] = desired_veh_state
