@@ -10,14 +10,10 @@ Note that these data are with the premise that after executing a behavior sequen
 """
 
 import os
+import random
+
 import h5py
-import matplotlib.pyplot as plt
-import numpy as np
-import itertools
 from collections import namedtuple
-
-import torch
-
 from environment import Environment, StateInterface
 from utils import *
 
@@ -27,7 +23,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'
 
 class DataCollector:
     @staticmethod
-    def runOnce(data_size=100000, lane_info_reset_num=100000, vehicle_info_reset_num=100):
+    def runOnce(data_size=1000, lane_info_reset_num=100000, vehicle_info_reset_num=100):
         current_states = []
         actions = []
         rewards = []
@@ -35,13 +31,14 @@ class DataCollector:
         dones = []
 
         # Start iteration
-        episode = None
+        episode = 0
         for environment_reset_episode in range(0, lane_info_reset_num):
             # Construct training environment
             left_lane_exist = random.randint(0, 1)
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
+            lane_speed_limit = random.uniform(10.0, 25.0)
             env = Environment()
 
             # Vehicles information reset iteration
@@ -51,16 +48,21 @@ class DataCollector:
                 surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
                 surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
 
+                # Judge whether available
+                if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
+                    print('Initial situation error, reset vehicles information!!!')
+                    break
+
                 # Transform to state array
-                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle, surround_vehicles)
+                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
 
                 # Load all information to env
                 env.load(current_state_array)
 
                 # Traverse action
                 for action in range(0, 63):
-                    episode = environment_reset_episode * vehicle_info_reset_num * 63 + vehicles_reset_episode * 63 + action
-                    print('Start episode: {}'.format(environment_reset_episode * vehicle_info_reset_num * 63 + vehicles_reset_episode * 63 + action))
+                    episode += 1
+                    print('Start episode: {}'.format(episode))
                     # Execute selected action
                     reward, next_state_array, done = env.runOnce(action)
                     # Store data
@@ -70,13 +72,13 @@ class DataCollector:
                     next_states.append(next_state_array)
                     dones.append(done)
 
-                    if episode >= data_size - 1:
+                    if episode >= data_size:
                         break
 
-                if episode >= data_size - 1:
+                if episode >= data_size:
                     break
 
-            if episode >= data_size - 1:
+            if episode >= data_size:
                 break
 
         # Transform data
@@ -85,11 +87,11 @@ class DataCollector:
         rewards = np.array(rewards)
         next_states = np.array(next_states)
         dones = np.array(dones)
-        print('Current states: {}'.format(current_states))
-        print('Actions: {}'.format(actions))
-        print('Rewards: {}'.format(rewards))
-        print('Next states: {}'.format(next_states))
-        print('Dones: {}'.format(dones))
+        # print('Current states: {}'.format(current_states))
+        # print('Actions: {}'.format(actions))
+        # print('Rewards: {}'.format(rewards))
+        # print('Next states: {}'.format(next_states))
+        # print('Dones: {}'.format(dones))
 
         # Initialize storage file
         if not os.path.exists('./data/'):
@@ -102,26 +104,7 @@ class DataCollector:
         f['dones'] = dones
 
 if __name__ == '__main__':
-    # DataCollector.runOnce(2)
-    with h5py.File('./data/data.h5', 'r') as f:
-        current_states = f['current_states'][()]
-        next_states = f['next_states'][()]
-        actions = f['actions'][()]
-        rewards = f['rewards'][()]
-    env = Environment()
-    env.load(current_states[1])
-    plt.figure(0)
-    ax_0 = plt.axes()
-    env.visualization(ax_0)
-    plt.axis('equal')
-
-    env.load(next_states[1])
-    plt.figure(1)
-    ax_1 = plt.axes()
-    env.visualization(ax_1)
-    plt.axis('equal')
-
-    plt.show()
+    DataCollector.runOnce(2)
 
 
 

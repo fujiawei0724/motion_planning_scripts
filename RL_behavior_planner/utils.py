@@ -779,7 +779,7 @@ class ForwardExtender:
         # Start forward simulation
         for step_index in range(0, num_steps_forward):
 
-            print('Start No. {} prediction epoch'.format(step_index + 1))
+            print('No. {} epoch forward calculating'.format(step_index + 1))
 
             # Initialize cache
             states_cache = {}
@@ -1084,7 +1084,7 @@ class PolicyEvaluator:
     # TODO: parameters need to change
     @classmethod
     def calculateEfficiencyCost(cls, ego_traj, lane_speed_limit):
-        return lane_speed_limit - ego_traj.vehicle_states_[-1].velocity_
+        return (lane_speed_limit - ego_traj.vehicle_states_[-1].velocity_) / 10.0
 
 
 # Agent vehicle generator (without ego vehicle)

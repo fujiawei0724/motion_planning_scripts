@@ -372,7 +372,7 @@ class Environment:
 
 
 if __name__ == '__main__':
-    random.seed(1563616166)
+    random.seed(1564255424361266166)
     # Load environment data randomly
     left_lane_exist = random.randint(0, 1)
     right_lane_exist = random.randint(0, 1)
@@ -392,7 +392,7 @@ if __name__ == '__main__':
         [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_limited_speed], ego_vehicle,
         surround_vehicles)
     # Define action
-    action = 56
+    action = 35
 
     # Construct environment
     env = Environment()
