@@ -108,6 +108,22 @@ class Tools:
         for veh_id, veh in vehicles.items():
             semantic_vehicles[veh_id].vehicle_ = veh
 
+    # Judge initial situation available, delete the initial situation where there are collisions
+    @staticmethod
+    def checkInitSituation(ego_vehicle, surround_vehicles):
+        # Get all vehicles
+        all_vehicles = []
+        all_vehicles.append(ego_vehicle)
+        for sur_veh_id, sur_veh in surround_vehicles.items():
+            all_vehicles.append(sur_veh)
+
+        # Calculate collision between each two vehicles
+        vehicles_num = len(all_vehicles)
+        for i in range(0, vehicles_num):
+            for j in range(i + 1, vehicles_num):
+                if Rectangle.isCollision(all_vehicles[i].rectangle_, all_vehicles[j].rectangle_):
+                    return False
+        return True
 
 
 # Visualization
@@ -727,7 +743,7 @@ class ForwardExtender:
         self.predict_time_span_ = predict_time_span
 
     # Forward extend with interaction among vehicles
-    def multiAgentForward(self, ego_potential_behavior_sequence: BehaviorSequence, vehicles):
+    def multiAgentForward(self, ego_potential_behavior_sequence: BehaviorSequence, vehicles, lane_speed_limit):
 
         # Determine ego vehicle id
         ego_vehicle_id = 0
@@ -781,7 +797,7 @@ class ForwardExtender:
                     elif longitudinal_behavior == LongitudinalBehavior.Normal:
                         desired_velocity += 0.0
                     elif longitudinal_behavior == LongitudinalBehavior.Aggressive:
-                        desired_velocity += 5.0
+                        desired_velocity = min(lane_speed_limit, desired_velocity + 5.0)
                     else:
                         assert False
 
@@ -1039,10 +1055,13 @@ class IDM:
 # Calculate a cost / reward for a policy
 class PolicyEvaluator:
     @classmethod
-    def praise(cls, ego_traj, sur_trajs, is_lane_changed):
-        safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs)
+    def praise(cls, ego_traj, sur_trajs, is_lane_changed, lane_speed_limit):
+        safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs, lane_speed_limit)
         lane_change_cost = cls.calculateLaneChangeCost(is_lane_changed)
-        efficiency_cost = cls.calculateEfficiencyCost(ego_traj)
+        efficiency_cost = cls.calculateEfficiencyCost(ego_traj, lane_speed_limit)
+        print('Safety cost: {}'.format(safety_cost))
+        print('Lane change cost: {}'.format(lane_change_cost))
+        print('Efficiency cost: {}'.format(efficiency_cost))
         return safety_cost + lane_change_cost + efficiency_cost, is_collision
 
     @classmethod
@@ -1050,7 +1069,7 @@ class PolicyEvaluator:
         return 0.5 if is_lane_changed else 0.0
 
     @classmethod
-    def calculateSafetyCost(cls, ego_traj, sur_trajs):
+    def calculateSafetyCost(cls, ego_traj, sur_trajs, lane_speed_limit):
         safety_cost = 0.0
         is_collision = False
         for _, judge_sur_traj in sur_trajs.items():
@@ -1058,12 +1077,14 @@ class PolicyEvaluator:
             safety_cost += cur_safety_cost
             if is_cur_collision:
                 is_collision = True
+        if ego_traj.vehicle_states_[-1].velocity_ > lane_speed_limit:
+            safety_cost += 100.0
         return safety_cost, is_collision
 
     # TODO: parameters need to change
     @classmethod
-    def calculateEfficiencyCost(cls, ego_traj):
-        return 1.0 / (ego_traj.vehicle_states_[-1].velocity_ - ego_traj.vehicle_states_[0].velocity_)
+    def calculateEfficiencyCost(cls, ego_traj, lane_speed_limit):
+        return lane_speed_limit - ego_traj.vehicle_states_[-1].velocity_
 
 
 # Agent vehicle generator (without ego vehicle)

@@ -9,6 +9,8 @@ Generate simulation data and use these data to train RL behavior planner.
 """
 
 import os
+import random
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import time
 import torch
@@ -48,12 +50,12 @@ class DDQNTrainer:
         # Define train constants for current situation
         self._max_iteration_num = 3
         self._max_environment_reset_episode = 10000
-        self._max_vehicle_info_reset_num = 1000
+        self._max_vehicle_info_reset_num = 100
 
         # Define network parameters
-        state_length = 93
-        self._policy_net = DQN(93, 63).to(self._device)
-        self._target_net = DQN(93, 63).to(self._device)
+        state_length = 94
+        self._policy_net = DQN(state_length, 63).to(self._device)
+        self._target_net = DQN(state_length, 63).to(self._device)
         self._policy_net.apply(self._policy_net.initWeights)
         self._target_net.load_state_dict(self._policy_net.state_dict())
         self._target_net.eval()
@@ -146,6 +148,7 @@ class DDQNTrainer:
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
+            lane_speed_limit = random.uniform(10.0, 25.0)
             env = Environment()
 
             # Vehicles information reset iteration
@@ -156,7 +159,7 @@ class DDQNTrainer:
                 surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
 
                 # Transform to state array
-                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle, surround_vehicles)
+                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
 
                 # Load all information to env
                 env.load(current_state_array)
