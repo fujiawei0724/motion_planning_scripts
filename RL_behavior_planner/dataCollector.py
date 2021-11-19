@@ -22,6 +22,7 @@ from utils import *
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
 
 class DataCollector:
+    # With single thread
     @staticmethod
     def runOnce(data_size=1000, lane_info_reset_num=100000, vehicle_info_reset_num=100):
         current_states = []
@@ -102,6 +103,11 @@ class DataCollector:
         f['rewards'] = rewards
         f['next_states'] = next_states
         f['dones'] = dones
+
+    # TODO: generate data with multi thread
+    @staticmethod
+    def multiThreadRun():
+        pass
 
 if __name__ == '__main__':
     DataCollector.runOnce(2)
