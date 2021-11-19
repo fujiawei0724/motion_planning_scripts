@@ -11,7 +11,7 @@ Note that these data are with the premise that after executing a behavior sequen
 
 import os
 import random
-
+import threading
 import h5py
 from collections import namedtuple
 from environment import Environment, StateInterface
@@ -24,7 +24,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'
 class DataCollector:
     # With single thread
     @staticmethod
-    def runOnce(data_size=1000, lane_info_reset_num=100000, vehicle_info_reset_num=100):
+    def runOnce(data_size=1000, target_file='./data/data.h5', lane_info_reset_num=100000, vehicle_info_reset_num=100):
         current_states = []
         actions = []
         rewards = []
@@ -97,21 +97,24 @@ class DataCollector:
         # Initialize storage file
         if not os.path.exists('./data/'):
             os.makedirs('./data/')
-        f = h5py.File('./data/data.h5', 'w')
+        f = h5py.File(target_file, 'w')
         f['current_states'] = current_states
         f['actions'] = actions
         f['rewards'] = rewards
         f['next_states'] = next_states
         f['dones'] = dones
 
-    # TODO: generate data with multi thread
+    # Generate data with multi thread
+    # Note that multi thread calculation could not reduce any time consumption!!!
     @staticmethod
-    def multiThreadRun():
-        pass
+    def multiThreadRun(thread_num):
+        for i in range(0, thread_num):
+            cur_target_file = './data/data_' + str(thread_num) + '.h5'
+            cur_thread = threading.Thread(target=DataCollector.runOnce, args=(2, cur_target_file))
+            cur_thread.start()
 
 if __name__ == '__main__':
     DataCollector.runOnce(2)
-
 
 
 
