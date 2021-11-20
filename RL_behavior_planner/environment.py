@@ -8,6 +8,8 @@
 The description of environment.
 """
 
+import os
+import logging
 import random
 import h5py
 import torch
@@ -274,7 +276,10 @@ class Environment:
         ego_traj, surround_trajs = forward_extender.multiAgentForward(behavior_sequence, vehicles, self.lane_speed_limit_)
 
         # ~Stage IV: calculate cost and transform to reward
-        policy_cost, is_collision = PolicyEvaluator.praise(ego_traj, surround_trajs, is_final_lane_changed, self.lane_speed_limit_)
+        """
+        Three components of cost is converted from here to DEBUG.
+        """
+        policy_cost, is_collision, safety_cost, lane_change_cost, efficiency_cost = PolicyEvaluator.praise(ego_traj, surround_trajs, is_final_lane_changed, self.lane_speed_limit_)
         reward = 1.0 / policy_cost
         if is_collision:
             error_situation = True
@@ -287,15 +292,15 @@ class Environment:
             self.visualizationTrajs(ax, ego_traj, surround_trajs)
 
         if error_situation:
-            return -100.0, next_state, True
+            return -100.0, next_state, True, safety_cost, lane_change_cost, efficiency_cost
 
-        return reward, next_state, True
+        return reward, next_state, True, safety_cost, lane_change_cost, efficiency_cost
 
     # Run with a action index
     def runOnce(self, action, with_visualization=False, ax=None):
         beh_seq = ActionInterface.indexToBehSeq(action)
-        reward, next_state, done = self.simulateBehSeq(beh_seq, with_visualization, ax)
-        return reward, next_state, done
+        reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost = self.simulateBehSeq(beh_seq, with_visualization, ax)
+        return reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost
 
     # DEBUG: visualization lanes
     def visualizationLanes(self, ax):
@@ -372,53 +377,136 @@ class Environment:
 
 
 if __name__ == '__main__':
-    random.seed(1564255424361266166)
-    # Load environment data randomly
-    left_lane_exist = random.randint(0, 1)
-    right_lane_exist = random.randint(0, 1)
-    center_left_distance = random.uniform(3.0, 4.5)
-    center_right_distance = random.uniform(3.0, 4.5)
-    lane_limited_speed = random.uniform(10.0, 25.0)
-    # Construct ego vehicle and surround vehicles randomly
-    ego_vehicle = EgoInfoGenerator.generateOnce()
-    surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
-    surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
-    # Check initial situation
-    if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
-        assert False
+    test_with_file_data = True
+    if not test_with_file_data:
+        # Test data from random generation
+        random.seed(1564255424361266166)
+        # Load environment data randomly
+        left_lane_exist = random.randint(0, 1)
+        right_lane_exist = random.randint(0, 1)
+        center_left_distance = random.uniform(3.0, 4.5)
+        center_right_distance = random.uniform(3.0, 4.5)
+        lane_limited_speed = random.uniform(10.0, 25.0)
+        # Construct ego vehicle and surround vehicles randomly
+        ego_vehicle = EgoInfoGenerator.generateOnce()
+        surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+        surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+        # Check initial situation
+        if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
+            assert False
 
-    # Transform to state array
-    current_state_array = StateInterface.worldToNetDataAll(
-        [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_limited_speed], ego_vehicle,
-        surround_vehicles)
-    # Define action
-    action = 35
+        # Transform to state array
+        current_state_array = StateInterface.worldToNetDataAll(
+            [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_limited_speed], ego_vehicle,
+            surround_vehicles)
+        # Define action
+        action = 35
 
-    # Construct environment
-    env = Environment()
-    env.load(current_state_array)
-    plt.figure(0)
-    plt.title('Initial states')
-    ax = plt.axes()
-    env.visualization(ax)
-    plt.axis('equal')
-    action_info = ActionInterface.indexToBehSeq(action, True)
+        # Construct environment
+        env = Environment()
+        env.load(current_state_array)
+        plt.figure(0)
+        plt.title('Initial states')
+        ax = plt.axes()
+        env.visualization(ax)
+        plt.axis('equal')
+        action_info = ActionInterface.indexToBehSeq(action, True)
 
-    plt.figure(1)
-    plt.title('All trajectories')
-    ax_1 = plt.axes()
-    cur_reward, cur_next_state_array, cur_done = env.runOnce(action, True, ax_1)
-    plt.axis('equal')
+        plt.figure(1)
+        plt.title('All trajectories')
+        ax_1 = plt.axes()
+        cur_reward, cur_next_state_array, cur_done, _, _, _ = env.runOnce(action, True, ax_1)
+        plt.axis('equal')
 
-    plt.figure(2)
-    plt.title('Stored final states')
-    ax_2 = plt.axes()
+        plt.figure(2)
+        plt.title('Stored final states')
+        ax_2 = plt.axes()
 
-    env.load(cur_next_state_array)
-    env.visualization(ax_2)
-    plt.axis('equal')
+        env.load(cur_next_state_array)
+        env.visualization(ax_2)
+        plt.axis('equal')
 
-    print('Reward: {}'.format(cur_reward))
+        print('Reward: {}'.format(cur_reward))
+        plt.show()
 
-    plt.show()
+    else:
+        # Test data from file
+        # Read data
+        with h5py.File('./data/data.h5', 'r') as f:
+            print(f.keys())
+            actions = f['actions'][()]
+            current_states = f['current_states'][()]
+            dones = f['dones'][()]
+            next_states = f['next_states'][()]
+            rewards = f['rewards'][()]
+
+        # print(np.array(actions).shape)
+        # print(np.array(current_states).shape)
+        # print(np.array(dones).shape)
+        # print(np.array(next_states).shape)
+        # print(np.array(rewards).shape)
+
+        # Initialize directory to store information
+        if not os.path.exists('./figure/'):
+            os.makedirs('./figure/')
+        if not os.path.exists('./log/'):
+            os.makedirs('./log/')
+        log_format = '%(levelname)s %(asctime)s - %(message)s'
+        logging.basicConfig(filename='./log/reword_info.log',
+                            filemode='a',
+                            format=log_format,
+                            level=logging.INFO)
+        logger = logging.getLogger()
+
+        for i in range(0, len(actions)):
+            # Initialize figure subdirectory
+            if not os.path.exists('./figure/figure_{}'.format(i)):
+                os.makedirs('./figure/figure_{}'.format(i))
+            # Define data index and select data
+            test_data_index = i
+            print('Test data index: {}'.format(test_data_index))
+            action = actions[test_data_index]
+            current_state_array = current_states[test_data_index]
+            done = dones[test_data_index]
+            next_state_array = next_states[test_data_index]
+            reward = rewards[test_data_index]
+
+            env = Environment()
+            # Visualization initial state
+            env.load(current_state_array)
+            plt.figure(0)
+            plt.title('Initial states')
+            ax = plt.axes()
+            env.visualization(ax)
+            plt.axis('equal')
+            plt.savefig('./figure/figure_{}/initial_states.jpg'.format(i))
+            # Print behavior sequence
+            action_info = ActionInterface.indexToBehSeq(action)
+            # Visualization all trajectories
+            plt.figure(1)
+            plt.title('All trajectories')
+            ax_1 = plt.axes()
+            _, _, _, safety_cost, lane_change_cost, efficiency_cost = env.runOnce(action, True, ax_1)
+            plt.axis('equal')
+            plt.savefig('./figure/figure_{}/all_trajectories.jpg'.format(i))
+            plt.figure(2)
+            plt.title('Stored final states')
+            ax_2 = plt.axes()
+            env.load(next_state_array)
+            env.visualization(ax_2)
+            plt.axis('equal')
+            plt.savefig('./figure/figure_{}/stored_final_states.jpg'.format(i))
+
+            logger.info('-----------------------Epoch: {}------------------------'.format(test_data_index))
+            logger.info('Safety cost: {}, lane change cost: {}, efficiency cost: {}'.format(safety_cost, lane_change_cost, efficiency_cost))
+            logger.info('Reward: {}'.format(reward))
+            logger.info('Longitudinal behavior: {}'.format(LongitudinalBehavior(action_info[0])))
+            for i in range(1, 11):
+                logger.info('Latitudinal behavior: {}'.format(LateralBehavior(action_info[i])))
+            # plt.show()
+
+
+
+
+
 

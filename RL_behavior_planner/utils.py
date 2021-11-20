@@ -1062,7 +1062,7 @@ class PolicyEvaluator:
         print('Safety cost: {}'.format(safety_cost))
         print('Lane change cost: {}'.format(lane_change_cost))
         print('Efficiency cost: {}'.format(efficiency_cost))
-        return safety_cost + lane_change_cost + efficiency_cost, is_collision
+        return safety_cost + lane_change_cost + efficiency_cost, is_collision, safety_cost, lane_change_cost, efficiency_cost
 
     @classmethod
     def calculateLaneChangeCost(cls, is_lane_changed):
