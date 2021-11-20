@@ -72,7 +72,7 @@ class DDQNTrainer:
         self._calculation_done = 0
 
         # Define model store path and log store path
-        self._save_path = './weights/'
+        self._save_path = './DDQN_weights/'
         if not os.path.exists(self._save_path):
             os.makedirs(self._save_path)
         self._summary_writer = SummaryWriter('./logs/')

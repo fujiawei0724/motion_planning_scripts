@@ -65,8 +65,8 @@ class DDPGTrainer:
         self.action_dim_ = 63
 
         # TODO: check these two ratio carefully
-        self.high_action_scalar_ = None
-        self.low_action_scalar = None
+        self.high_action_scalar_ = 1.0
+        self.low_action_scalar = -1.0
 
         # Device
         self.device_ = torch.device('cuda:0')
@@ -82,6 +82,10 @@ class DDPGTrainer:
         self.actor_optimizer_ = torch.optim.Adam(self.actor_.parameters(), 0.0001)
         self.critic_optimizer_ = torch.optim.Adam(self.critic_.parameters(), 0.001)
         # Hyper-parameters
+        # Define train constants for current situation
+        self._max_iteration_num = 3
+        self._max_environment_reset_episode = 10000
+        self._max_vehicle_info_reset_num = 100
         self.max_episode_ = 100000
         self.max_steps_ = 500
         self.batch_size_ = 64
@@ -96,7 +100,10 @@ class DDPGTrainer:
         # Log
         self.summary_ = SummaryWriter('./logs/')
         # Define save path
-        self.save_path_ = './weights/'
+        self.save_path_ = './DDPG_weights/'
+
+        self.calculation_done_ = 0
+        self.step_done_ = 0
 
     # Optimization
     def optimization(self):
@@ -144,8 +151,78 @@ class DDPGTrainer:
             for param, target_param in zip(self.critic_.parameters(), self.target_critic_.parameters()):
                 target_param.data.copy_(self.tau_ * param.data + (1 - self.tau_) * target_param.data)
 
+        return avg_value_loss / self.update_iteration_, avg_policy_loss / self.update_iteration_
+
     # Train
     def train(self):
-        episode = 0
-        while episode < self.max_episode_:
-            pass
+        # Environment information reset iteration
+        for env_reset_episode in range(0, self._max_environment_reset_episode):
+            # Construct training environment
+            left_lane_exist = random.randint(0, 1)
+            right_lane_exist = random.randint(0, 1)
+            center_left_distance = random.uniform(3.0, 4.5)
+            center_right_distance = random.uniform(3.0, 4.5)
+            lane_speed_limit = random.uniform(10.0, 25.0)
+            env = Environment()
+
+            # Vehicles information reset iteration
+            for vehicles_reset_episode in range(0, self._max_vehicle_info_reset_num):
+                # Construct ego vehicle and surround vehicles randomly
+                ego_vehicle = EgoInfoGenerator.generateOnce()
+                surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+                surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+
+                # Transform to state array
+                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
+
+                # Load all information to env
+                env.load(current_state_array)
+
+                # Record reward
+                total_reward = 0
+
+                # Simulate a round, each round include three behavior sequences
+                for i in range(0, self._max_iteration_num):
+                    print('Start calculation epoch: {}'.format(self.calculation_done_))
+                    self.calculation_done_ += 1
+
+                    # Get action with noise
+                    with torch.no_grad():
+                        action = self.actor_.forward(current_state_array)
+                        action = action.squeeze(0).cpu().numpy()
+                    action = (action + np.random.normal(0, self.exploration_noise_, size=self.action_dim_)).clip(self.low_action_scalar, self.high_action_scalar_)
+                    # Process action
+                    # TODO: check the distribution of action
+                    action = np.argmax(action)
+
+                    # Execute selected action
+                    reward, next_state_array, done = env.runOnce(action)
+                    # Store information to memory buffer
+                    self.memory_buffer_.update(Transition(current_state_array, action, next_state_array, reward, done))
+                    # Update environment and current state
+                    current_state_array = next_state_array
+                    env.load(current_state_array)
+                    # Sum reward
+                    total_reward += reward
+
+                    if done:
+                        break
+
+                # Judge if update
+                if self.memory_buffer_.size() >= self.buffer_full_:
+                    # Start epitomize
+                    value_loss, policy_loss = self.optimization()
+                    self.step_done_ += 1
+                    if self.step_done_ != 0 and self.step_done_ % 20 == 0:
+                        # Save information
+                        self.summary_.add_scalar('loss/value_loss', value_loss, self.step_done_)
+                        self.summary_.add_scalar('loss/policy_loss', policy_loss, self.step_done_)
+                        self.summary_.add_scalar('reward', total_reward, self.step_done_)
+                        print('Episode ', self.step_done_, ' reward: ', total_reward)
+                        # Save weights
+                        torch.save(self.actor_.state_dict(), self.save_path_ + 'actor_checkpoint.pt')
+                        torch.save(self.critic_.state_dict(), self.save_path_ + 'critic_checkpoint.pt')
+
+if __name__ == '__main__':
+    pass
+
