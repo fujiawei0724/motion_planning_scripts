@@ -188,7 +188,7 @@ class DDPGTrainer:
 
                     # Get action with noise
                     with torch.no_grad():
-                        action = self.actor_.forward(current_state_array)
+                        action = self.actor_.forward(torch.from_numpy(current_state_array).to(torch.float32).to(self.device_))
                         action = action.squeeze(0).cpu().numpy()
                     action = (action + np.random.normal(0, self.exploration_noise_, size=self.action_dim_)).clip(self.low_action_scalar, self.high_action_scalar_)
                     # Process action
@@ -224,5 +224,6 @@ class DDPGTrainer:
                         torch.save(self.critic_.state_dict(), self.save_path_ + 'critic_checkpoint.pt')
 
 if __name__ == '__main__':
-    pass
+    trainer = DDPGTrainer()
+    trainer.train()
 

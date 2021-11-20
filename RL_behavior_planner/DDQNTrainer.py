@@ -80,6 +80,7 @@ class DDQNTrainer:
     # TODO: in our problem, what is environmental exploration mean? In other word, is continuous exploration valid?
     # Select action for train
     def selectAction(self, current_state, use_random=True):
+        current_state = torch.from_numpy(current_state).to(torch.float32).to(self._device)
         if use_random:
             sample = random.random()
             eps_threshold = self._eps_start + (self._eps_end - self._eps_start) * min(self._steps_done / self._eps_decay, 1.0)
