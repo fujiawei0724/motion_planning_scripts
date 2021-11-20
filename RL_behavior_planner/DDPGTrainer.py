@@ -91,7 +91,7 @@ class DDPGTrainer:
         self.batch_size_ = 64
         self.update_iteration_ = 200
         self.buffer_size_ = 1000000
-        self.buffer_full_ = 50000
+        self.buffer_full_ = 64
         self.gamma_ = 0.99
         self.tau_ = 0.001
         self.exploration_noise_ = 0.1
@@ -193,12 +193,12 @@ class DDPGTrainer:
                     action = (action + np.random.normal(0, self.exploration_noise_, size=self.action_dim_)).clip(self.low_action_scalar, self.high_action_scalar_)
                     # Process action
                     # TODO: check the distribution of action
-                    action = np.argmax(action)
+                    action_info = np.argmax(action)
 
                     # Execute selected action
-                    reward, next_state_array, done = env.runOnce(action)
+                    reward, next_state_array, done, _, _, _ = env.runOnce(action_info)
                     # Store information to memory buffer
-                    self.memory_buffer_.update(Transition(current_state_array, action, next_state_array, reward, done))
+                    self.memory_buffer_.update(Transition(torch.from_numpy(current_state_array), action, torch.from_numpy(next_state_array), reward, done))
                     # Update environment and current state
                     current_state_array = next_state_array
                     env.load(current_state_array)

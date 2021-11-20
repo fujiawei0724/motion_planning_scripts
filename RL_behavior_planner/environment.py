@@ -294,7 +294,12 @@ class Environment:
         if error_situation:
             return -100.0, next_state, True, safety_cost, lane_change_cost, efficiency_cost
 
-        return reward, next_state, True, safety_cost, lane_change_cost, efficiency_cost
+        # ~Stage VII: judge whether done, current logic is: if ego vehicle forward distance excesses 60, done will be set with true, which means the end of a series of behavior sequences
+        done = False
+        if ego_traj.vehicle_states_[-1].position_.x_ > 60.0:
+            done = True
+
+        return reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost
 
     # Run with a action index
     def runOnce(self, action, with_visualization=False, ax=None):

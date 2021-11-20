@@ -175,37 +175,39 @@ class DDQNTrainer:
                     # Generate behavior
                     action = self.selectAction(current_state_array)
                     # Execute selected action
-                    reward, next_state_array, done = env.runOnce(action)
+                    reward, next_state_array, done, _, _, _ = env.runOnce(action)
                     # Store information to memory buffer
-                    self._memory_replay.update(Transition(current_state_array, action, next_state_array, reward, done))
+                    self._memory_replay.update(Transition(torch.from_numpy(current_state_array), action, torch.from_numpy(next_state_array), reward, done))
                     # Update environment and current state
                     current_state_array = next_state_array
                     env.load(current_state_array)
                     # Sum reward
                     total_reward += reward
 
-                    # Judge if update
-                    if self._memory_replay.size() > self._buffer_full:
-                        # Execute optimization
-                        if self._steps_done % self._optimize_frequency == 0:
-                            self.optimizeProcess()
-                        # Update target network parameters
-                        if self._steps_done % self._target_update == 0:
-                            self._target_net.load_state_dict(self._policy_net.state_dict())
-                            print('Update target net in {} round'.format(self._steps_done))
-                        # Evaluate model
-                        if self._steps_done % self._evaluation_frequency == 0:
-                            evaluate_reward = self.evaluate()
-                            self._summary_writer.add_scalar('evaluation', evaluate_reward, self._steps_done)
-                            print('Step ', self._steps_done, ' Evaluation reward ', evaluate_reward)
-                        self._steps_done += 1
                     if done:
                         break
 
+                # Judge if update
+                if self._memory_replay.size() > self._buffer_full:
+                    # Execute optimization
+                    if self._steps_done % self._optimize_frequency == 0:
+                        self.optimizeProcess()
+                    # Update target network parameters
+                    if self._steps_done % self._target_update == 0:
+                        self._target_net.load_state_dict(self._policy_net.state_dict())
+                        print('Update target net in {} round'.format(self._steps_done))
+                    # Evaluate model
+                    if self._steps_done % self._evaluation_frequency == 0:
+                        evaluate_reward = self.evaluate()
+                        self._summary_writer.add_scalar('evaluation', evaluate_reward, self._steps_done)
+                        print('Step ', self._steps_done, ' Evaluation reward ', evaluate_reward)
+                    self._steps_done += 1
+
+
                 # Calculate current calculation number
-                if (env_reset_episode * self._max_vehicle_info_reset_num + vehicles_reset_episode) % 20 == 0:
-                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(env_reset_episode % 3) + '.pt')
-                    print('Episode: ', env_reset_episode * self._max_vehicle_info_reset_num + vehicles_reset_episode, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
+                if self._calculation_done % 20 == 0:
+                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(self._calculation_done % 3) + '.pt')
+                    print('Episode: ', self._calculation_done, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
                 self._summary_writer.add_scalar('reward', total_reward, self._steps_done)
 
     # Evaluate training
