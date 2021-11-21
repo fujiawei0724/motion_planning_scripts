@@ -238,7 +238,7 @@ class DDQNTrainer:
 
 
                 # Calculate current calculation number
-                if self._steps_done % 20 == 0:
+                if self._steps_done % 20 == 0 and self._steps_done != 0:
                     torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(self._steps_done % 3) + '.pt')
                     print('Episode: ', self._calculation_done, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
                 self._summary_writer.add_scalar('reward', total_reward, self._steps_done)
