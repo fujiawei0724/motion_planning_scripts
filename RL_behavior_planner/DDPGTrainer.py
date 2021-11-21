@@ -231,6 +231,11 @@ class DDPGTrainer:
 
                     # Execute selected action
                     reward, next_state_array, done, _, _, _ = env.runOnce(action_info)
+                    """
+                    DEBUG: the loss absolute value of reward is increasing with the training process, maybe comes from the larger gap in different predefined rewards values?
+                    """
+                    if reward < 0:
+                        reward /= 100.0
                     # Store information to memory buffer
                     self.memory_buffer_.update(Transition(torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(action).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_), reward, done))
                     # Update environment and current state

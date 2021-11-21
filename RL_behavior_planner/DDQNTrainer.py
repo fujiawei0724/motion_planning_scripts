@@ -45,7 +45,7 @@ class DDQNTrainer:
         self._buffer_size = 50000
         self._target_update = 10000
         self._optimize_frequency = 4
-        self._evaluation_frequency = 100000
+        self._evaluation_frequency = 1000
 
         # Define train constants for current situation
         self._max_iteration_num = 3
@@ -113,7 +113,7 @@ class DDQNTrainer:
                 action = torch.IntTensor([random.choice(self._action)]).to(self._device)
             else:
                 with torch.no_grad():
-                    action = self._policy_net(current_state.to(self._device)).max(1)[1]
+                    action = self._policy_net(current_state.to(self._device)).unsqueeze(0).max(1)[1]
             return action
         else:
             sample = random.random()
@@ -121,10 +121,8 @@ class DDQNTrainer:
             action = None
             if sample < eps_threshold:
                 action = torch.IntTensor([random.choice(self._action)]).to(self._device)
-                print('Action: {}'.format(action))
             else:
                 with torch.no_grad():
-                    print(self._policy_net(current_state.to(self._device)))
                     action = self._policy_net(current_state.to(self._device)).unsqueeze(0).max(1)[1]
             return action
 
