@@ -10,8 +10,8 @@ DDPG based method for behavior planner.
 
 import os
 import random
-
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import h5py
 import time
 import torch
 from collections import namedtuple
@@ -95,12 +95,41 @@ class DDPGTrainer:
         self.gamma_ = 0.99
         self.tau_ = 0.001
         self.exploration_noise_ = 0.1
+
         # Memory buffer
         self.memory_buffer_ = MemoryReplay(self.buffer_size_)
+        # """
+        # DEBUG: add initial data to warm start up
+        # """
+        # # Read data
+        # with h5py.File('./data/data.h5', 'r') as f:
+        #     # print(f.keys())
+        #     actions = f['actions'][()]
+        #     current_states = f['current_states'][()]
+        #     dones = f['dones'][()]
+        #     next_states = f['next_states'][()]
+        #     rewards = f['rewards'][()]
+        # for _ in range(0, 64):
+        #     ran_index = random.randint(0, 999)
+        #     # action = actions[ran_index]
+        #     # Generate a action distribution randomly
+        #     action = np.random.rand(63, )
+        #     current_state = current_states[ran_index]
+        #     done = dones[ran_index]
+        #     next_state = next_states[ran_index]
+        #     reward = rewards[ran_index]
+        #     transition = Transition(torch.from_numpy(current_state).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(action).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(next_state).unsqueeze(0).to(torch.float32).to(self.device_), reward, done)
+        #     self.memory_buffer_.update(transition)
+        # """
+        # END DEBUG
+        # """
+
         # Log
-        self.summary_ = SummaryWriter('./logs/')
+        self.summary_ = SummaryWriter('./DDPG_logs/')
         # Define save path
         self.save_path_ = './DDPG_weights/'
+        if not os.path.exists(self.save_path_):
+            os.makedirs(self.save_path_)
 
         self.calculation_done_ = 0
         self.step_done_ = 0
@@ -121,9 +150,9 @@ class DDPGTrainer:
                 dones.append(1 - data.done)
             # Format
             states = torch.cat(states).to(self.device_)
-            actions = torch.Tensor(actions).to(self.device_)
+            actions = torch.cat(actions).to(self.device_)
             rewards = torch.Tensor(rewards).unsqueeze(1).to(self.device_)
-            next_states = torch.Tensor(next_states).to(self.device_)
+            next_states = torch.cat(next_states).to(self.device_)
             dones = torch.Tensor(dones).unsqueeze(1).to(self.device_)
             # Calculate predict value
             predict_value = self.critic_(states, actions)
@@ -172,6 +201,11 @@ class DDPGTrainer:
                 surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
                 surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
 
+                # Judge whether available
+                if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
+                    print('Initial situation error, reset vehicles information!!!')
+                    continue
+
                 # Transform to state array
                 current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
 
@@ -198,7 +232,7 @@ class DDPGTrainer:
                     # Execute selected action
                     reward, next_state_array, done, _, _, _ = env.runOnce(action_info)
                     # Store information to memory buffer
-                    self.memory_buffer_.update(Transition(torch.from_numpy(current_state_array), action, torch.from_numpy(next_state_array), reward, done))
+                    self.memory_buffer_.update(Transition(torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(action).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_), reward, done))
                     # Update environment and current state
                     current_state_array = next_state_array
                     env.load(current_state_array)
@@ -211,6 +245,7 @@ class DDPGTrainer:
                 # Judge if update
                 if self.memory_buffer_.size() >= self.buffer_full_:
                     # Start epitomize
+                    print('Optimization No. {} round'.format(self.step_done_))
                     value_loss, policy_loss = self.optimization()
                     self.step_done_ += 1
                     if self.step_done_ != 0 and self.step_done_ % 20 == 0:
@@ -218,10 +253,10 @@ class DDPGTrainer:
                         self.summary_.add_scalar('loss/value_loss', value_loss, self.step_done_)
                         self.summary_.add_scalar('loss/policy_loss', policy_loss, self.step_done_)
                         self.summary_.add_scalar('reward', total_reward, self.step_done_)
-                        print('Episode ', self.step_done_, ' reward: ', total_reward)
+                        print('Episode ', self.calculation_done_, ' step: ', self.step_done_, ' reward: ', total_reward)
                         # Save weights
-                        torch.save(self.actor_.state_dict(), self.save_path_ + 'actor_checkpoint.pt')
-                        torch.save(self.critic_.state_dict(), self.save_path_ + 'critic_checkpoint.pt')
+                        torch.save(self.actor_.state_dict(), self.save_path_ + 'actor_checkpoint' + str(self.step_done_ % 3) + '.pt')
+                        torch.save(self.critic_.state_dict(), self.save_path_ + 'critic_checkpoint' + str(self.step_done_ % 3) + '.pt')
 
 if __name__ == '__main__':
     trainer = DDPGTrainer()

@@ -9,9 +9,9 @@ Generate simulation data and use these data to train RL behavior planner.
 """
 
 import os
-import random
-
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import random
+import h5py
 import time
 import torch
 from collections import namedtuple
@@ -40,8 +40,8 @@ class DDQNTrainer:
         self._eps_end = 0.1
         self._eps_decay = 1000000
         self._gamma = 0.99
-        self._batch_size = 32
-        self._buffer_full = 32
+        self._batch_size = 64
+        self._buffer_full = 64
         self._buffer_size = 50000
         self._target_update = 10000
         self._optimize_frequency = 4
@@ -66,6 +66,30 @@ class DDQNTrainer:
         # Define memory buffer
         self._memory_replay = MemoryReplay(self._buffer_size)
 
+        # """
+        # DEBUG: add initial data to warm start up
+        # """
+        # # Read data
+        # with h5py.File('./data/data.h5', 'r') as f:
+        #     # print(f.keys())
+        #     actions = f['actions'][()]
+        #     current_states = f['current_states'][()]
+        #     dones = f['dones'][()]
+        #     next_states = f['next_states'][()]
+        #     rewards = f['rewards'][()]
+        # for _ in range(0, 64):
+        #     ran_index = random.randint(0, 999)
+        #     action = actions[ran_index]
+        #     current_state = current_states[ran_index]
+        #     done = dones[ran_index]
+        #     next_state = next_states[ran_index]
+        #     reward = rewards[ran_index]
+        #     transition = Transition(torch.from_numpy(current_state).unsqueeze(0).to(torch.float32).to(self._device), torch.IntTensor([action]).to(self._device), torch.from_numpy(next_state).unsqueeze(0).to(torch.float32).to(self._device), reward, done)
+        #     self._memory_replay.update(transition)
+        # """
+        # END DEBUG
+        # """
+
         # Record optimization iteration number
         self._steps_done = 0
         # Record calculation iteration number
@@ -75,7 +99,7 @@ class DDQNTrainer:
         self._save_path = './DDQN_weights/'
         if not os.path.exists(self._save_path):
             os.makedirs(self._save_path)
-        self._summary_writer = SummaryWriter('./logs/')
+        self._summary_writer = SummaryWriter('./DDQN_logs/')
 
     # TODO: in our problem, what is environmental exploration mean? In other word, is continuous exploration valid?
     # Select action for train
@@ -93,13 +117,15 @@ class DDQNTrainer:
             return action
         else:
             sample = random.random()
-            eps_threshold = 0.05
+            eps_threshold = 0.0
             action = None
             if sample < eps_threshold:
                 action = torch.IntTensor([random.choice(self._action)]).to(self._device)
+                print('Action: {}'.format(action))
             else:
                 with torch.no_grad():
-                    action = self._policy_net(current_state.to(self._device)).max(1)[1]
+                    print(self._policy_net(current_state.to(self._device)))
+                    action = self._policy_net(current_state.to(self._device)).unsqueeze(0).max(1)[1]
             return action
 
     # Optimization for net
@@ -159,6 +185,11 @@ class DDQNTrainer:
                 surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
                 surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
 
+                # Judge whether available
+                if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
+                    print('Initial situation error, reset vehicles information!!!')
+                    continue
+
                 # Transform to state array
                 current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
 
@@ -178,7 +209,7 @@ class DDQNTrainer:
                     # Execute selected action
                     reward, next_state_array, done, _, _, _ = env.runOnce(action)
                     # Store information to memory buffer
-                    self._memory_replay.update(Transition(torch.from_numpy(current_state_array), action, torch.from_numpy(next_state_array), reward, done))
+                    self._memory_replay.update(Transition(torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self._device), action, torch.from_numpy(next_state_array).unsqueeze(0).to(torch.float32).to(self._device), reward, done))
                     # Update environment and current state
                     current_state_array = next_state_array
                     env.load(current_state_array)
@@ -189,9 +220,10 @@ class DDQNTrainer:
                         break
 
                 # Judge if update
-                if self._memory_replay.size() > self._buffer_full:
+                if self._memory_replay.size() >= self._buffer_full:
                     # Execute optimization
                     if self._steps_done % self._optimize_frequency == 0:
+                        print('Optimization No. {} round'.format(self._steps_done))
                         self.optimizeProcess()
                     # Update target network parameters
                     if self._steps_done % self._target_update == 0:
@@ -206,8 +238,8 @@ class DDQNTrainer:
 
 
                 # Calculate current calculation number
-                if self._calculation_done % 20 == 0:
-                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(self._calculation_done % 3) + '.pt')
+                if self._steps_done % 20 == 0:
+                    torch.save(self._policy_net.state_dict(), self._save_path + 'checkpoint' + str(self._steps_done % 3) + '.pt')
                     print('Episode: ', self._calculation_done, ', Steps: ', self._steps_done, ', Reward: ', total_reward)
                 self._summary_writer.add_scalar('reward', total_reward, self._steps_done)
 
@@ -219,17 +251,21 @@ class DDQNTrainer:
 
         for episode in range(0, episodes):
             # Load environment data randomly
-            # TODO: delete error situations, such as collision
             left_lane_exist = random.randint(0, 1)
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
+            lane_speed_limit = random.uniform(10.0, 25.0)
             # Construct ego vehicle and surround vehicles randomly
             ego_vehicle = EgoInfoGenerator.generateOnce()
             surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
             surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+            # Judge whether available
+            if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
+                print('Initial situation error, reset vehicles information!!!')
+                break
             # Transform to state array
-            current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance], ego_vehicle, surround_vehicles)
+            current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
             # Load information to environment
             env.load(current_state_array)
 
@@ -240,12 +276,15 @@ class DDQNTrainer:
                 # Generate behavior
                 action = self.selectAction(current_state_array, False)
                 # Execute selected action
-                next_state_array, reward, done = env.runOnce(action)
+                reward, next_state_array, done, _, _, _ = env.runOnce(action)
                 # Update environment and current state
                 current_state_array = next_state_array
                 env.load(current_state_array)
                 # Sum reward
                 total_reward += reward
+
+                if done:
+                    break
 
             rewards.append(total_reward)
 
