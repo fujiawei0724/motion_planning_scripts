@@ -147,7 +147,7 @@ class DDPGTrainer:
                 actions.append(data.action)
                 rewards.append(data.reward)
                 next_states.append(data.next_state)
-                dones.append(1 - data.done)
+                dones.append(data.done)
             # Format
             states = torch.cat(states).to(self.device_)
             actions = torch.cat(actions).to(self.device_)
@@ -157,7 +157,7 @@ class DDPGTrainer:
             # Calculate predict value
             predict_value = self.critic_(states, actions)
             # Calculate target value
-            target_value = (dones * self.gamma_ * self.target_critic_(next_states, self.target_actor_(next_states))).detach() + rewards
+            target_value = ((1 - dones) * self.gamma_ * self.target_critic_(next_states, self.target_actor_(next_states))).detach() + rewards
             # Calculate value loss
             value_loss = torch.nn.MSELoss()(predict_value, target_value)
             # Update critic
