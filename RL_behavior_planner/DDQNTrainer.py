@@ -117,7 +117,7 @@ class DDQNTrainer:
             return action
         else:
             sample = random.random()
-            eps_threshold = 0.0
+            eps_threshold = 0.05
             action = None
             if sample < eps_threshold:
                 action = torch.IntTensor([random.choice(self._action)]).to(self._device)
