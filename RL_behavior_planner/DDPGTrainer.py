@@ -88,10 +88,10 @@ class DDPGTrainer:
         self._max_vehicle_info_reset_num = 100
         self.max_episode_ = 100000
         self.max_steps_ = 500
-        self.batch_size_ = 64
+        self.batch_size_ = 128
         self.update_iteration_ = 200
         self.buffer_size_ = 1000000
-        self.buffer_full_ = 64
+        self.buffer_full_ = 10000
         self.gamma_ = 0.99
         self.tau_ = 0.001
         self.exploration_noise_ = 0.1
@@ -171,6 +171,11 @@ class DDPGTrainer:
             # Update actor
             self.actor_optimizer_.zero_grad()
             policy_loss.backward()
+            """
+            DEBUG: add limit to grad
+            """
+            for param in self.actor_.parameters():
+                param.grad.data.clamp_(-1, 1)
             self.actor_optimizer_.step()
             # Record
             avg_policy_loss += policy_loss.item()
@@ -234,8 +239,8 @@ class DDPGTrainer:
                     """
                     DEBUG: the loss absolute value of reward is increasing with the training process, maybe comes from the larger gap in different predefined rewards values?
                     """
-                    if reward < 0:
-                        reward /= 100.0
+                    # if reward < 0:
+                    #     reward /= 100.0
                     # Store information to memory buffer
                     self.memory_buffer_.update(Transition(torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(action).unsqueeze(0).to(torch.float32).to(self.device_), torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_), reward, done))
                     # Update environment and current state
