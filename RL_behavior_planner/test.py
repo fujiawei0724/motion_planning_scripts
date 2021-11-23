@@ -39,6 +39,7 @@ class Tester:
         output_rewards = []
 
         epoch = 0
+        match_num = 0
         while epoch < test_eposide:
             # Load environment data randomly
             env = Environment()
@@ -62,12 +63,15 @@ class Tester:
 
             # Calculate action predicted by network and its reward
             net_pred_action = policy_net.forward(current_state_array)
-            net_pred_action_reward, _ = env.runOnce(net_pred_action)
+            net_pred_action = net_pred_action.unsqueeze(0).max(1)[1].item()
+            print('Net pred action: {}'.format(net_pred_action))
+            net_pred_action_reward, _, _, _, _, _ = env.runOnce(net_pred_action)
 
             # Traverse calculate the best action with the largest reward
             real_rewards = np.array([0.0 for _ in range(63)])
             for action in range(0, 63):
-                real_rewards[action], _ = env.runOnce(action)
+                print('Episode: {}, calculating action: {}'.format(epoch, action))
+                real_rewards[action], _, _, _, _, _ = env.runOnce(action)
             # Get best action and reward
             best_action = np.argmax(real_rewards)
             best_reward = real_rewards[best_action]
@@ -78,11 +82,14 @@ class Tester:
             best_rewards.append(best_reward)
 
             epoch += 1
-
+            if net_pred_action == best_action:
+                match_num += 1
+            print('Test episode: {}, match num: {}, success rate: {}'.format(epoch, match_num, match_num / epoch))
         print('Output actions: {}'.format(output_actions))
         print('Output rewards: {}'.format(output_rewards))
         print('Best actions: {}'.format(best_actions))
         print('Best rewards: {}'.format(best_rewards))
+        print('Final success rate: {}'.format(match_num / epoch))
 
     # Test DDPG
     @staticmethod
@@ -158,7 +165,7 @@ class Tester:
 
 
 if __name__ == '__main__':
-    pass
+    Tester.testDDQN()
 
 
 

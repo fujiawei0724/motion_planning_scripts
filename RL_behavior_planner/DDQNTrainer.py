@@ -39,7 +39,7 @@ class DDQNTrainer:
         self._eps_start = 1
         self._eps_end = 0.1
         self._eps_decay = 1000000
-        self._gamma = 0.99
+        self._gamma = 0.5
         self._batch_size = 64
         self._buffer_full = 64
         self._buffer_size = 50000
