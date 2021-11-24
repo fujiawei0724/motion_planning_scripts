@@ -9,18 +9,13 @@ Train based on PPO.
 """
 
 import os
-import random
-
-import numpy as np
-
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 import h5py
 import time
 import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
-from Double_DQN_net import DQN
-from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
 
@@ -81,12 +76,13 @@ class PPOTrainer:
         self.max_vehicle_info_reset_num_ = 100
         self.gamma_ = 0.5
         self.optimization_epochs_ = 4
-        self.memory_buffer_size_ = 100
+        self.memory_buffer_size_ = 500
         self.eps_clip_ = 0.2
         self.memory_buffer_ = []
 
         # Record
         self.calculation_done_ = 0
+        self.optimization_done_ = 0
 
         # Store path
         self.summary_writer_ = SummaryWriter('./PPO_logs')
@@ -96,6 +92,7 @@ class PPOTrainer:
 
     # Optimize model
     def optimization(self):
+        self.optimization_done_ += 1
         assert(len(self.memory_buffer_) == self.memory_buffer_size_)
         # Loss record
         loss_record = 0.0
@@ -117,9 +114,9 @@ class PPOTrainer:
             g_t = reward.item() + self.gamma_ * g_t
             G.insert(0, g_t)
         # Format
-        states = torch.cat(states).to(self.device_)
-        actions = torch.cat(actions).unsqueeze(1).to(self.device_)
-        log_probs = torch.cat(log_probs).float().unsqueeze(1).to(self.device_)
+        states = torch.cat(states, 0).to(self.device_)
+        actions = torch.Tensor(actions).unsqueeze(1).to(self.device_)
+        log_probs = torch.Tensor(log_probs).float().unsqueeze(1).to(self.device_)
         G = torch.Tensor(G).float().unsqueeze(1).to(self.device_)
         # Modify
         G = (G - G.mean()) / (G.std() + 1e-5)
@@ -145,7 +142,8 @@ class PPOTrainer:
             # Calculate value loss
             value_loss = torch.nn.MSELoss()(new_values, G)
             # Calculate total loss
-            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy.means()
+            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy.mean()
+            self.summary_writer_.add_scalar('loss', loss, self.optimization_done_)
             # Record loss
             loss_record += loss.item()
             # Optimize
@@ -186,8 +184,10 @@ class PPOTrainer:
 
                 # Load all information to env
                 env.load(current_state_array)
+                current_state_array = torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self.device_)
 
-                # Record reward
+                # Record
+                step_done = 0
                 total_reward = 0
 
                 # Simulate a round, each round include three behavior sequences
@@ -197,8 +197,41 @@ class PPOTrainer:
 
                     # Get action
                     with torch.no_grad():
-                        action_probs = self.actor_critic_.act(torch.from_numpy(current_state_array).to(torch.float32).to(self.device_))
+                        action_probs = self.actor_critic_.act(current_state_array)
                         distribution = torch.distributions.Categorical(action_probs)
                         action = distribution.sample()
                         log_prob = distribution.log_prob(action)
-                    
+
+                    # Update
+                    reward, next_state_array, done, _, _, _ = env.runOnce(action.item())
+                    # Format
+                    next_state_array = torch.from_numpy(next_state_array).to(self.device_).unsqueeze(0)
+                    reward = torch.Tensor([reward]).float().to(self.device_)
+                    # Record reward
+                    total_reward += reward.item()
+                    # Store memory
+                    self.memory_buffer_.append(Transition(current_state_array, action, log_prob, reward, done))
+                    # Judge if update
+                    if len(self.memory_buffer_) >= self.memory_buffer_size_:
+                        self.optimization()
+
+                    # Update state
+                    current_state_array = next_state_array
+                    current_state_array = current_state_array.to(torch.float32).to(self.device_)
+
+                    # Judge done
+                    if done:
+                        break
+                    step_done += 1
+
+                self.summary_writer_.add_scalar('reward', total_reward, self.calculation_done_)
+                if self.calculation_done_ % 10 == 0:
+                    # Print info
+                    print('Episode: {}, reward :{}'.format(self.calculation_done_, total_reward))
+                    # Save model
+                    torch.save(self.actor_critic_.state_dict(), self.weight_path_ + 'checkpoint.pth')
+
+
+if __name__ == '__main__':
+    ppo = PPOTrainer()
+    ppo.train()
