@@ -292,7 +292,7 @@ class Environment:
             self.visualizationTrajs(ax, ego_traj, surround_trajs)
 
         if error_situation:
-            return -1.0, next_state, True, safety_cost, lane_change_cost, efficiency_cost
+            return -100.0, next_state, True, safety_cost, lane_change_cost, efficiency_cost
 
         # ~Stage VII: judge whether done, current logic is: if ego vehicle forward distance excesses 60, done will be set with true, which means the end of a series of behavior sequences
         done = False
