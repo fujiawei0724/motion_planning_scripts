@@ -172,7 +172,7 @@ class Tester:
         state_size = 94
         action_size = 63
         policy_net = ActorCritic(state_size, action_size)
-        policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pt', map_location='cpu'))
+        policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location='cpu'))
         policy_net.eval()
 
         # Initialize container
