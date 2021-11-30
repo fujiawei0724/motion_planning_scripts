@@ -1097,7 +1097,7 @@ class AgentGenerator:
     def generateSingleAgent(self, index):
         agent_length = random.uniform(4.0, 6.0)
         agent_width = random.uniform(1.8, 2.5)
-        agent_velocity = random.uniform(3.0, 10.0)
+        agent_velocity = random.uniform(0.0, 10.0)
         agent_acceleration = random.uniform(-1.0, 1.0)
 
         x_position = random.uniform(0.0, 100.0)
