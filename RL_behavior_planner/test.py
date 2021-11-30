@@ -98,18 +98,12 @@ class Tester:
     """
     @staticmethod
     def testDDPG(test_episode=100):
+        # Load network
         state_size = 94
-        action_dim = 63
-        high_action_scalar = 1.0
-        low_action_scalar = -1.0
-
-        # Load actor and critic
-        actor = Actor(state_size, action_dim, high_action_scalar)
-        critic = Critic(state_size, action_dim)
-        actor.load_state_dict(torch.load('./DDPG_weights/actor_checkpoint.pt', map_location='cpu'))
-        critic.load_state_dict(torch.load('./DDPG_weights/critic_checkpoint.pt', map_location='cpu'))
-        actor.eval()
-        critic.eval()
+        action_size = 63
+        policy_net = Actor(state_size, action_size, 1.0)
+        policy_net.load_state_dict(torch.load('./DDPG_weights/actor_checkpoint0.pt', map_location='cpu'))
+        policy_net.eval()
 
         # Initialize container
         best_actions = []
@@ -118,6 +112,7 @@ class Tester:
         output_rewards = []
 
         epoch = 0
+        match_num = 0
         while epoch < test_episode:
             # Load environment data randomly
             env = Environment()
@@ -136,20 +131,22 @@ class Tester:
                 continue
 
             # Transform to state array
-            current_state_array = StateInterface.worldToNetDataAll(
-                [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
+            current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
             env.load(current_state_array)
+            current_state_array = torch.from_numpy(current_state_array).to(torch.float32)
+
 
             # Calculate action predicted by network and its reward
-            net_pred_action = actor.forward(current_state_array)
-            net_pred_action = net_pred_action.squeeze(0).cpu().numpy()
-            net_pred_action = np.argmax(net_pred_action)
-            net_pred_action_reward, _, _ = env.runOnce(net_pred_action)
+            net_pred_action = policy_net.forward(current_state_array)
+            net_pred_action = net_pred_action.unsqueeze(0).max(1)[1].item()
+            print('Net pred action: {}'.format(net_pred_action))
+            net_pred_action_reward, _, _, _, _, _ = env.runOnce(net_pred_action)
 
             # Traverse calculate the best action with the largest reward
             real_rewards = np.array([0.0 for _ in range(63)])
             for action in range(0, 63):
-                real_rewards[action], _, _ = env.runOnce(action)
+                print('Episode: {}, calculating action: {}'.format(epoch, action))
+                real_rewards[action], _, _, _, _, _ = env.runOnce(action)
             # Get best action and reward
             best_action = np.argmax(real_rewards)
             best_reward = real_rewards[best_action]
@@ -160,11 +157,15 @@ class Tester:
             best_rewards.append(best_reward)
 
             epoch += 1
-
+            if net_pred_action == best_action:
+                match_num += 1
+            print('Test episode: {}, match num: {}, success rate: {}'.format(epoch, match_num, match_num / epoch))
         print('Output actions: {}'.format(output_actions))
         print('Output rewards: {}'.format(output_rewards))
         print('Best actions: {}'.format(best_actions))
         print('Best rewards: {}'.format(best_rewards))
+        print('Final success rate: {}'.format(match_num / epoch))
+
 
     @staticmethod
     def testPPO(test_episode=100):
@@ -241,7 +242,7 @@ class Tester:
 
 
 if __name__ == '__main__':
-    Tester.testPPO()
-
+    # Tester.testPPO()
+    Tester.testDDPG()
 
 
