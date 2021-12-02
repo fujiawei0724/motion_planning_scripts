@@ -647,8 +647,7 @@ class IdealSteerModel:
                 predict_state = [0.0 for _ in range(5)]
                 predict_state[0] = internal_state[0] + dt * np.cos(internal_state[2]) * internal_state[3]
                 predict_state[1] = internal_state[1] + dt * np.sin(internal_state[2]) * internal_state[3]
-                predict_state[2] = internal_state[2] + dt * np.tan(internal_state[4]) * internal_state[
-                    3] / self.wheelbase_len_
+                predict_state[2] = internal_state[2] + dt * np.tan(internal_state[4]) * internal_state[3] / self.wheelbase_len_
                 predict_state[3] = internal_state[3] + dt * self.desired_lon_acc_
                 predict_state[4] = internal_state[4] + dt * self.desired_steer_rate_
                 return predict_state
