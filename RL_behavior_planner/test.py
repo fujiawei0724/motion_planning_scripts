@@ -61,6 +61,7 @@ class Tester:
             # Transform to state array
             current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
             env.load(current_state_array)
+            current_state_array = torch.from_numpy(current_state_array).to(torch.float32)
 
             # Calculate action predicted by network and its reward
             net_pred_action = policy_net.forward(current_state_array)
