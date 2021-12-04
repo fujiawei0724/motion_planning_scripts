@@ -37,7 +37,7 @@ class BSplineTrajectory:
 
         s_t_interpolation = self.myQuinticBSpline(s_t_projection_points)
         d_t_interpolation = self.myQuinticBSpline(d_t_projection_points)
-        assert(s_t_interpolation[:, 0].all() == d_t_interpolation[:, 0].all())
+        assert(s_t_interpolation[:, 1].all() == d_t_interpolation[:, 1].all())
 
         # Construct 3D trajectory
         s_dimension = s_t_interpolation[:, 0]

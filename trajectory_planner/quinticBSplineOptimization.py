@@ -70,14 +70,15 @@ class OptimizationTools:
         b = np.zeros((8, ))
 
         # Added points constrain conditions
-        A[0][0], A[0][2], A[0][4] = 1.0, -2.0, 1.0
-        A[1][1], A[1][2], A[1][3] = 1.0, -2.0, 1.0
-        A[2][points_num - 1], A[2][points_num - 3], A[2][points_num - 5] = 1.0, -2.0, 1.0
-        A[3][points_num - 2], A[3][points_num - 3], A[3][points_num - 4] = 1.0, -2.0, 1.0
+        """
+        Note that in the first version code, the added points' constraints are set redundant. Instead of using 4 constraints, actually we only need 2 constraints to ensure the approximation of the start point and end point.
+        """
+        A[0][0], A[0][1], A[0][2], A[0][3], A[0][4] = 1.0 / 120.0, 13.0 / 60.0, -9.0 / 20.0, 13.0 / 60.0, 1.0 / 120.0
+        A[1][points_num - 5], A[1][points_num - 4], A[1][points_num - 3], A[1][points_num - 2], A[1][points_num - 1] = 1.0 / 120.0, 13.0 / 60.0, -9.0 / 20.0, 13.0 / 60.0, 1.0 / 120.0
 
         # Start point and end point position constraint conditions
-        A[4][2], A[5][points_num - 3] = 1.0, 1.0
-        b[4], b[5] = copy.copy(start_point_value), copy.copy(end_point_value)
+        A[2][2], A[3][points_num - 3] = 1.0, 1.0
+        b[2], b[3] = copy.copy(start_point_value), copy.copy(end_point_value)
 
         """
         Some problem happen when add the velocity and acceleration constraint condition, maybe the reason is that the equality constraint conditions are redundant.
@@ -89,16 +90,18 @@ class OptimizationTools:
         """
 
         # Start point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
-        A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[6] = 5.0
-        # A[7][0], A[7][1], A[7][2], A[7][3], A[7][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
-        # b[7] = 0.0
+        start_segment_time_span = OptimizationTools.calcTimeSpan(all_control_points[:6])
+        A[4][0], A[4][1], A[4][3], A[4][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[4] = 5.0 * start_segment_time_span
+        A[6][0], A[6][1], A[6][2], A[6][3], A[6][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        b[6] = 0.0 * start_segment_time_span
 
         # # End point velocity and acceleration constraint conditions (velocity and acceleration values are for test)
-        A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 2], A[7][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[7] = 5.0
-        # A[9][points_num - 5], A[9][points_num - 4], A[9][points_num - 3], A[9][points_num - 2], A[9][points_num - 1] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
-        # b[9] = 1.0
+        end_segment_time_span = OptimizationTools.calcTimeSpan(all_control_points[points_num - 6:points_num])
+        A[5][points_num - 5], A[5][points_num - 4], A[5][points_num - 2], A[5][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[5] = 5.0 * end_segment_time_span
+        A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 3], A[7][points_num - 2], A[7][points_num - 1] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        b[7] = 1.0 * end_segment_time_span
 
 
         return matrix(A), matrix(b)
@@ -114,6 +117,11 @@ class OptimizationTools:
     def calcEndTime(segment_control_points):
         assert segment_control_points.shape == (6, 2)
         return (1.0 / 120.0) * segment_control_points[1][0] + (13.0 / 60.0) * segment_control_points[2][0] + (33.0 / 60.0) * segment_control_points[3][0] + (26.0 / 120.0) * segment_control_points[4][0] + (1.0 / 120.0) * segment_control_points[5][0]
+
+    # Calculate time span
+    @staticmethod
+    def calcTimeSpan(segment_control_points):
+        return OptimizationTools.calcEndTime(segment_control_points) - OptimizationTools.calcStartTime(segment_control_points)
 
     # Optimization function
     @staticmethod

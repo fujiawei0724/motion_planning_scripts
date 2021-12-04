@@ -179,6 +179,9 @@ class CvxoptInterface:
         res = solvers.qp(P, q, G, h, A, b)
 
         # Construct final result
+        
+        print('Optimized y: {}'.format(np.array(res['x']).reshape((1, -1))))
+        
         optimized_y = np.array(res['x'][2:-2]).reshape((1, -1))
         # ref_stamps = np.array(self.all_ref_stamps_[2:-2])
         # optimized_points2d = np.vstack((ref_stamps, optimized_y)).T
@@ -215,24 +218,29 @@ class CvxoptInterface:
         b = np.zeros((8,))
 
         # Added points constrain conditions
-        A[0][0], A[0][2], A[0][4] = 1.0, -2.0, 1.0
-        A[1][1], A[1][2], A[1][3] = 1.0, -2.0, 1.0
-        A[2][points_num - 1], A[2][points_num - 3], A[2][points_num - 5] = 1.0, -2.0, 1.0
-        A[3][points_num - 2], A[3][points_num - 3], A[3][points_num - 4] = 1.0, -2.0, 1.0
+        A[0][0], A[0][1], A[0][2], A[0][3], A[0][4] = 1.0 / 120.0, 13.0 / 60.0, -9.0 / 20.0, 13.0 / 60.0, 1.0 / 120.0
+        A[1][points_num - 5], A[1][points_num - 4], A[1][points_num - 3], A[1][points_num - 2], A[1][points_num - 1] = 1.0 / 120.0, 13.0 / 60.0, -9.0 / 20.0, 13.0 / 60.0, 1.0 / 120.0
 
         # Start point and end point position constraint conditions
-        A[4][2], A[5][points_num - 3] = 1.0, 1.0
-        b[4], b[5] = self.start_constraint_[0], self.end_constraint_[0]
+        A[2][2], A[3][points_num - 3] = 1.0, 1.0
+        b[2], b[3] = self.start_constraint_[0], self.end_constraint_[0]
 
         # Start point and end point velocity constraint conditions
         start_segment_time_span = OptimizationTools.calculateTimeSpan(self.all_ref_stamps_[:6])
-        A[6][0], A[6][1], A[6][3], A[6][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[6] = self.start_constraint_[1] * start_segment_time_span
+        A[4][0], A[4][1], A[4][3], A[4][4] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[4] = self.start_constraint_[1] * start_segment_time_span
         end_segment_time_span = OptimizationTools.calculateTimeSpan(self.all_ref_stamps_[points_num-6:points_num])
-        A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 2], A[7][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
-        b[7] = self.end_constraint_[1] * end_segment_time_span
+        A[5][points_num - 5], A[5][points_num - 4], A[5][points_num - 2], A[5][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
+        b[5] = self.end_constraint_[1] * end_segment_time_span
 
         # TODO: for quintic B-spline, the acceleration of the start point and point must be set to zero, add an algorithm to handle this problem.
+        # Start point and end point acceleration constraint conditions
+        A[6][0], A[6][1], A[6][2], A[6][3], A[6][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        b[6] = self.start_constraint_[2] * start_segment_time_span
+        A[7][points_num - 5], A[7][points_num - 4], A[7][points_num - 3], A[7][points_num - 2], A[7][points_num - 1] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
+        b[7] = self.end_constraint_[2] * end_segment_time_span
+
+
 
         return matrix(A), matrix(b)
 
@@ -380,6 +388,18 @@ class BSplineOptimizer:
         return all_ref_stamps
 
 class Utils:
+
+    # Generate a-t data based on v-t
+    @staticmethod
+    def calculateAcceleration(t, v):
+        diff_t = np.diff(t)
+        diff_v = np.diff(v)
+        acceleration = []
+        for d_t, d_v in zip(diff_t, diff_v):
+            acceleration.append(d_v/d_t)
+        truncate_t = t[:-1]
+        return truncate_t, acceleration
+
     # Generate v-t data based on s-t
     @staticmethod
     def calculateVelocity(t, s):
@@ -388,8 +408,8 @@ class Utils:
         velocity = []
         for d_t, d_s in zip(diff_t, diff_s):
             velocity.append(d_s/d_t)
-        velocity.insert(0, velocity[0])
-        return t, velocity
+        truncate_t = t[:-1]
+        return truncate_t, velocity
 
     # Calculate curvature
     @staticmethod
@@ -419,8 +439,8 @@ class Utils:
 
 if __name__ == '__main__':
     # Prepare data
-    start_constraints = EqualConstraint(0., 5.0, 0., -0.5, -0.1, 0.)
-    end_constraints = EqualConstraint(30., 10.0, 0., -3.5, -2.0, 0.)
+    start_constraints = EqualConstraint(0., 5.0, 1.0, -0.5, -0.1, 0.0)
+    end_constraints = EqualConstraint(30., 10.0, 1.0, -3.5, -2.0, 0.0)
 
     cube_1 = SemanticCube(0.0, 16.0, -2.0, 2.0, 0.0, 2.0)
     cube_2 = SemanticCube(2.0, 20.0, -2.0, 2.0, 0.4, 2.4)
@@ -441,7 +461,7 @@ if __name__ == '__main__':
     b_spline_optimizer.load(start_constraints, end_constraints, corridor, ref_stamps)
     optimized_points3d = b_spline_optimizer.runOnce()
 
-    print('optimized points: {}'.format(optimized_points3d))
+    # print('optimized points: {}'.format(optimized_points3d))
 
     # Generate trajectory
     trajectory_generator = BSplineTrajectory()
@@ -463,12 +483,14 @@ if __name__ == '__main__':
     ax.set_box_aspect(aspect=(x_range[1]-x_range[0], y_range[1]-y_range[0], z_range[1]-z_range[0]))
 
     # Visualization information
-    info_fig = plt.figure(1, (8, 12))
-    ax_1 = info_fig.add_subplot(321)
-    ax_2 = info_fig.add_subplot(322)
-    ax_3 = info_fig.add_subplot(323)
-    ax_4 = info_fig.add_subplot(324)
-    ax_5 = info_fig.add_subplot(313)
+    info_fig = plt.figure(1, (12, 12))
+    ax_1 = info_fig.add_subplot(331)
+    ax_2 = info_fig.add_subplot(332)
+    ax_3 = info_fig.add_subplot(333)
+    ax_4 = info_fig.add_subplot(334)
+    ax_5 = info_fig.add_subplot(335)
+    ax_6 = info_fig.add_subplot(336)
+    ax_7 = info_fig.add_subplot(313)
 
     ax_1.plot(trajectory[:, 2], trajectory[:, 0], linewidth=1.0, c='r')
     ax_1.title.set_text('s-t')
@@ -481,22 +503,34 @@ if __name__ == '__main__':
     ax_2.set_xlabel('t')
     ax_2.set_ylabel('velocity_s')
 
-    ax_3.plot(trajectory[:, 2], trajectory[:, 1], linewidth=1.0, c='r')
-    ax_3.title.set_text('d-t')
+    s_t, s_acceleration = Utils.calculateAcceleration(s_t, s_velocity)
+    ax_3.plot(s_t, s_acceleration, linewidth=1.0, c='b')
+    ax_3.title.set_text('acceleration_s-t')
     ax_3.set_xlabel('t')
-    ax_3.set_ylabel('d')
+    ax_3.set_ylabel('acceleration_s')
+
+    ax_4.plot(trajectory[:, 2], trajectory[:, 1], linewidth=1.0, c='r')
+    ax_4.title.set_text('d-t')
+    ax_4.set_xlabel('t')
+    ax_4.set_ylabel('d')
 
     d_t, d_velocity = Utils.calculateVelocity(trajectory[:, 2], trajectory[:, 1])
-    ax_4.plot(d_t, d_velocity, linewidth=1.0, c='g')
-    ax_4.title.set_text('velocity_d-t')
-    ax_4.set_xlabel('t')
-    ax_4.set_ylabel('velocity_d')
+    ax_5.plot(d_t, d_velocity, linewidth=1.0, c='g')
+    ax_5.title.set_text('velocity_d-t')
+    ax_5.set_xlabel('t')
+    ax_5.set_ylabel('velocity_d')
+
+    d_t, d_acceleration = Utils.calculateAcceleration(d_t, d_velocity)
+    ax_6.plot(d_t, d_acceleration, linewidth=1.0, c='b')
+    ax_6.title.set_text('acceleration_d-t')
+    ax_6.set_xlabel('t')
+    ax_6.set_ylabel('acceleration_d')
 
     curvatures = Utils.calculateKappa(trajectory[:, 0], trajectory[:, 1])
-    ax_5.plot(trajectory[:, 2], curvatures, linewidth=1.0, c='b')
-    ax_5.title.set_text('curvature_t')
-    ax_5.set_xlabel('t')
-    ax_5.set_ylabel('curvature')
+    ax_7.plot(trajectory[:, 2], curvatures, linewidth=1.0, c='b')
+    ax_7.title.set_text('curvature_t')
+    ax_7.set_xlabel('t')
+    ax_7.set_ylabel('curvature')
 
     plt.suptitle('Trajectory information')
 
