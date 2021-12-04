@@ -179,9 +179,11 @@ class CvxoptInterface:
         res = solvers.qp(P, q, G, h, A, b)
 
         # Construct final result
-        
-        print('Optimized y: {}'.format(np.array(res['x']).reshape((1, -1))))
-        
+
+        # # DEBUG
+        # print('Optimized y: {}'.format(np.array(res['x']).reshape((1, -1))))
+        # # END DEBUG
+
         optimized_y = np.array(res['x'][2:-2]).reshape((1, -1))
         # ref_stamps = np.array(self.all_ref_stamps_[2:-2])
         # optimized_points2d = np.vstack((ref_stamps, optimized_y)).T
@@ -233,7 +235,7 @@ class CvxoptInterface:
         A[5][points_num - 5], A[5][points_num - 4], A[5][points_num - 2], A[5][points_num - 1] = -1.0 / 24.0, -5.0 / 12.0, 5.0 / 12.0, 1.0 / 24.0
         b[5] = self.end_constraint_[1] * end_segment_time_span
 
-        # TODO: for quintic B-spline, the acceleration of the start point and point must be set to zero, add an algorithm to handle this problem.
+        # TODO: the acceleration constraints of quintic B-spline could be added correctly. They could generate roughly the same result as expected. However, the start acceleration and end acceleration are always 0. Check this logic.
         # Start point and end point acceleration constraint conditions
         A[6][0], A[6][1], A[6][2], A[6][3], A[6][4] = 1.0 / 6.0, 1.0 / 3.0, -1.0, 1.0 / 3.0, 1.0 / 6.0
         b[6] = self.start_constraint_[2] * start_segment_time_span
@@ -439,8 +441,8 @@ class Utils:
 
 if __name__ == '__main__':
     # Prepare data
-    start_constraints = EqualConstraint(0., 5.0, 1.0, -0.5, -0.1, 0.0)
-    end_constraints = EqualConstraint(30., 10.0, 1.0, -3.5, -2.0, 0.0)
+    start_constraints = EqualConstraint(0., 5.0, 0.8, -0.5, -0.1, 0.0)
+    end_constraints = EqualConstraint(30., 10.0, 0.0, -3.5, -2.0, 0.0)
 
     cube_1 = SemanticCube(0.0, 16.0, -2.0, 2.0, 0.0, 2.0)
     cube_2 = SemanticCube(2.0, 20.0, -2.0, 2.0, 0.4, 2.4)
