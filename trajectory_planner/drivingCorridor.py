@@ -76,12 +76,16 @@ if __name__ == '__main__':
     # cube_9 = Cube(16.0, 28.0, -4.5, 2.0, 3.2, 5.2)
     # cube_10 = Cube(20.0, 30.0, -4.5, 2.0, 3.6, 5.6)
     # corridor = [cube_1, cube_2, cube_3, cube_4, cube_5, cube_6, cube_7, cube_8, cube_9, cube_10]
-    cube_0 = Cube(-1.25, 9.0, -9.9, 9.9, 0.0, 0.8)
-    cube_1 = Cube(-2.0, 17.0, -9.9, 9.9, 0.8, 1.6)
-    cube_2 = Cube(-4.0, 25.0, -9.9, 9.9, 1.6, 2.4)
-    cube_3 = Cube(-3.5, 33.0, -9.9, 9.9, 2.4, 3.2)
-    cube_4 = Cube(-4.25, 41.0, -9.9, 9.9, 3.2, 4.0)
-    corridor = [cube_0, cube_1, cube_2, cube_3, cube_4]
+    # cube_0 = Cube(-1.25, 9.0, -9.9, 9.9, 0.0, 0.8)
+    # cube_1 = Cube(-2.0, 17.0, -9.9, 9.9, 0.8, 1.6)
+    # cube_2 = Cube(-4.0, 25.0, -9.9, 9.9, 1.6, 2.4)
+    # cube_3 = Cube(-3.5, 33.0, -9.9, 9.9, 2.4, 3.2)
+    # cube_4 = Cube(-4.25, 41.0, -9.9, 9.9, 3.2, 4.0)
+    # corridor = [cube_0, cube_1, cube_2, cube_3, cube_4]
+    cube_0 = Cube(-3.75, 14.0, -9.9, 9.9, 0.0, 1.2)
+    cube_1 = Cube(2.0, 31.0, -9.9, 9.9, 1.2, 2.8)
+    cube_2 = Cube(10.5, 57.0, -9.9, 9.9, 2.8, 4.0)
+    corridor = [cube_0, cube_1, cube_2]
 
 
     x_range, y_range, z_range = Tools.calculateRanges(corridor)

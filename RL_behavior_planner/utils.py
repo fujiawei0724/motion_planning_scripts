@@ -1066,7 +1066,7 @@ class PolicyEvaluator:
 
     @classmethod
     def calculateLaneChangeCost(cls, is_lane_changed):
-        return 0.5 if is_lane_changed else 0.0
+        return 0.3 if is_lane_changed else 0.0
 
     @classmethod
     def calculateSafetyCost(cls, ego_traj, sur_trajs, lane_speed_limit):
