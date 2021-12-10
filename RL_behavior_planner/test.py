@@ -28,7 +28,7 @@ class Tester:
     def testDDQN(test_eposide=100):
         # Load network
         state_size = 94
-        action_size = 63
+        action_size = 231
         policy_net = DQN(state_size, action_size)
         policy_net.load_state_dict(torch.load('./DDQN_weights/checkpoint0.pt', map_location='cpu'))
         policy_net.eval()
@@ -70,8 +70,8 @@ class Tester:
             net_pred_action_reward, _, _, _, _, _ = env.runOnce(net_pred_action)
 
             # Traverse calculate the best action with the largest reward
-            real_rewards = np.array([0.0 for _ in range(63)])
-            for action in range(0, 63):
+            real_rewards = np.array([0.0 for _ in range(231)])
+            for action in range(0, 231):
                 print('Episode: {}, calculating action: {}'.format(epoch, action))
                 real_rewards[action], _, _, _, _, _ = env.runOnce(action)
             # Get best action and reward
@@ -172,7 +172,7 @@ class Tester:
     def testPPO(test_episode=100):
         # Load network
         state_size = 94
-        action_size = 63
+        action_size = 231
         policy_net = ActorCritic(state_size, action_size)
         policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location='cpu'))
         policy_net.eval()
@@ -215,8 +215,8 @@ class Tester:
             net_pred_action_reward, _, _, _, _, _ = env.runOnce(net_pred_action)
 
             # Traverse calculate the best action with the largest reward
-            real_rewards = np.array([0.0 for _ in range(63)])
-            for action in range(0, 63):
+            real_rewards = np.array([0.0 for _ in range(231)])
+            for action in range(0, 231):
                 print('Episode: {}, calculating action: {}'.format(epoch, action))
                 real_rewards[action], _, _, _, _, _ = env.runOnce(action)
             # Get best action and reward

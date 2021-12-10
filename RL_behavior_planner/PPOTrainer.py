@@ -60,11 +60,11 @@ class PPOTrainer:
         # Define device
         self.device_ = torch.device('cuda:0')
         # Define action
-        self.action_ = np.arange(0, 63, 1)
+        self.action_ = np.arange(0, 231, 1)
 
         # Actor-critic
         state_dim = 94
-        action_dim = 63
+        action_dim = 231
         self.actor_critic_ = ActorCritic(state_dim, action_dim).to(self.device_)
         # Optimizer
         self.optimizer_ = torch.optim.Adam(self.actor_critic_.parameters(), lr=0.002, betas=(0.9, 0.999))

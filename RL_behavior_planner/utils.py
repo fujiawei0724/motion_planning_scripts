@@ -194,6 +194,14 @@ class IntentionSequence:
         for veh_intention_index, veh_intention in enumerate(self.intention_seq_):
             print('Single intention index: {}, lateral behavior: {}, longitudinal speed compensation: {}'.format(veh_intention_index, veh_intention.lat_beh_, veh_intention.velocity_compensation_))
 
+    # Print information for data transform
+    def printInfo(self):
+        info = []
+        info.append(int(self.intention_seq_[0].velocity_compensation_))
+        for _, veh_intention in enumerate(self.intention_seq_):
+            info.append(veh_intention.lat_beh_.value)
+        return info
+
 
 # Construct available behavior sequence
 # TODO: add consideration of current lateral behavior
@@ -790,7 +798,7 @@ class ForwardExtender:
         self.predict_time_span_ = predict_time_span
 
     # Forward extend with interaction among vehicles
-    def multiAgentForward(self, ego_potential_behavior_sequence: BehaviorSequence, vehicles, lane_speed_limit):
+    def multiAgentForward(self, ego_potential_behavior_sequence, vehicles, lane_speed_limit):
 
         # Determine ego vehicle id
         ego_vehicle_id = 0
@@ -812,8 +820,15 @@ class ForwardExtender:
         num_steps_forward = int(self.predict_time_span_ / self.dt_)
         assert len(ego_potential_behavior_sequence.beh_seq_) == num_steps_forward
 
-        # Determine longitudinal behavior
-        longitudinal_behavior = ego_potential_behavior_sequence.beh_seq_[0].lon_beh_
+        # Determine longitudinal behavior or longitudinal velocity compensation
+        longitudinal_behavior = None
+        longitudinal_velocity_compensation = None
+        if isinstance(ego_potential_behavior_sequence, BehaviorSequence):
+            longitudinal_behavior = ego_potential_behavior_sequence.beh_seq_[0].lon_beh_
+        elif isinstance(ego_potential_behavior_sequence, IntentionSequence):
+            longitudinal_velocity_compensation = ego_potential_behavior_sequence.intention_seq_[0].velocity_compensation_
+        else:
+            assert False
 
         # Get the initial velocities of all vehicles
         initial_velocities = dict()
@@ -839,14 +854,18 @@ class ForwardExtender:
                 desired_velocity = initial_velocities[veh_id]
                 # init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
-                    if longitudinal_behavior == LongitudinalBehavior.Conservative:
-                        desired_velocity = max(0.0, desired_velocity - 5.0)
-                    elif longitudinal_behavior == LongitudinalBehavior.Normal:
-                        desired_velocity += 0.0
-                    elif longitudinal_behavior == LongitudinalBehavior.Aggressive:
-                        desired_velocity = min(lane_speed_limit, desired_velocity + 5.0)
-                    else:
-                        assert False
+                    if isinstance(ego_potential_behavior_sequence, IntentionSequence):
+                        if longitudinal_behavior == LongitudinalBehavior.Conservative:
+                            desired_velocity = max(0.0, desired_velocity - 5.0)
+                        elif longitudinal_behavior == LongitudinalBehavior.Normal:
+                            desired_velocity += 0.0
+                        elif longitudinal_behavior == LongitudinalBehavior.Aggressive:
+                            desired_velocity = min(lane_speed_limit, desired_velocity + 5.0)
+                        else:
+                            assert False
+                    elif isinstance(ego_potential_behavior_sequence, IntentionSequence):
+                        desired_velocity += longitudinal_velocity_compensation
+                        desired_velocity = np.clip(desired_velocity, 0.0, lane_speed_limit)
 
                 # TODO: set vehicles speed limits from reference lane speed limit
                 desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_semantic_vehicles, desired_velocity)
@@ -1177,5 +1196,7 @@ if __name__ == '__main__':
     beh_gene = BehaviorGenerator(10)
     intention_set = beh_gene.generateIntends()
     print('Intention set length: {}'.format(len(intention_set)))
+    info = []
     for intention in intention_set:
-        intention.print()
+        info.append(intention.printInfo())
+    print(info)

@@ -76,78 +76,22 @@ class StateInterface:
 
 # Transform action between index and behavior sequence
 class ActionInterface:
-    action_index = np.arange(0, 63, 1)
-    action_info = np.array([[0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
-                            [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2],
-                            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
-                            [0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2],
-                            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-                            [0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2],
-                            [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
-                            [0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [1, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
-                            [1, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2],
-                            [1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
-                            [1, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2],
-                            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-                            [1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2],
-                            [1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                            [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [2, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-                            [2, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2],
-                            [2, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
-                            [2, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2],
-                            [2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
-                            [2, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2],
-                            [2, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-                            [2, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2],
-                            [2, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
-                            [2, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-                            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+
+    action_index_1 = np.arange(0, 63, 1)
+    action_index_2 = np.arange(0, 231, 1)
+
+    with h5py.File('./data/action_info.h5', 'r') as f:
+        # print(f.keys())
+        action_info_1 = f['action_info_1'][()]
+        action_info_2 = f['action_info_2'][()]
 
     @classmethod
     def indexToBehSeq(cls, index, with_print=False):
         if torch.is_tensor(index):
             index = index.item()
-        assert index in cls.action_index
+        assert index in cls.action_index_1
 
-        beh_seq_info = cls.action_info[index]
+        beh_seq_info = cls.action_info_1[index]
         if with_print:
             print('Longitudinal behavior: {}'.format(LongitudinalBehavior(beh_seq_info[0])))
             for i in range(1, len(beh_seq_info)):
@@ -156,10 +100,31 @@ class ActionInterface:
 
     @classmethod
     def behSeqToIndex(cls, beh_seq_info):
-        assert beh_seq_info in cls.action_info
-        for index, cur_beh_seq_info in enumerate(cls.action_info):
+        assert beh_seq_info in cls.action_info_1
+        for index, cur_beh_seq_info in enumerate(cls.action_info_1):
             if (cur_beh_seq_info == beh_seq_info).all():
                 return index
+
+    @classmethod
+    def indexToIntentionSeq(cls, index, with_print=False):
+        if torch.is_tensor(index):
+            index = index.item()
+        assert index in cls.action_index_2
+
+        intention_seq_info = cls.action_info_2[index]
+        if with_print:
+            print('Longitudinal velocity compensation: {}'.format(intention_seq_info[0]))
+            for i in range(1, len(intention_seq_info)):
+                print('Latitudinal behavior: {}'.format(LateralBehavior(intention_seq_info[i])))
+        return intention_seq_info
+
+    @classmethod
+    def intentionSeqToIndex(cls, intention_seq_info):
+        assert intention_seq_info in cls.action_info_2
+        for index, cur_intention_seq_info in enumerate(cls.action_info_2):
+            if (cur_intention_seq_info == intention_seq_info).all():
+                return index
+
 
 
 # Construct the environment for reward calculation
@@ -247,24 +212,41 @@ class Environment:
 
     # Load behavior sequence
     # behavior sequence is a array has 11 elements, [0] denotes the longitudinal behavior, [1:11] denotes the corresponding latitudinal behavior in each time stamps respectively
-    def simulateBehSeq(self, behavior_sequence_info, with_visualization, ax):
+    def simulateBehSeq(self, behavior_sequence_info, with_visualization, ax, with_intention=True):
         # Record if done, if there is collision in trajectories or ego vehicle driving forward an nonexistent lane
         error_situation = False
 
-        # ~Stage I: Transform the behavior sequence
-        beh_seq = []
-        for i in range(1, 11):
-            beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]),
-                                           LongitudinalBehavior(behavior_sequence_info[0])))
-        behavior_sequence = BehaviorSequence(beh_seq)
-        is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
-        if is_final_lane_changed:
-            if behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeLeft:
-                if LaneId.LeftLane not in self.lane_server_.lanes_:
-                    error_situation = True
-            elif behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeRight:
-                if LaneId.RightLane not in self.lane_server_.lanes_:
-                    error_situation = True
+        # ~Stage I: Transform the behavior sequence / intention sequence
+        behavior_sequence = None
+        intention_sequence = None
+        is_final_lane_changed = None
+        if with_intention:
+            intention_seq = []
+            for i in range(1, 11):
+                intention_seq.append(VehicleIntention(LateralBehavior(behavior_sequence_info[i]), float(behavior_sequence_info[0])))
+            intention_sequence = IntentionSequence(intention_seq)
+            is_final_lane_changed = True if intention_sequence.intention_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
+            if is_final_lane_changed:
+                if intention_sequence.intention_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeLeft:
+                    if LaneId.LeftLane not in self.lane_server_.lanes_:
+                        error_situation = True
+                elif intention_sequence.intention_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeRight:
+                    if LaneId.RightLane not in self.lane_server_.lanes_:
+                        error_situation = True
+        else:
+            beh_seq = []
+            for i in range(1, 11):
+                beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]),
+                                               LongitudinalBehavior(behavior_sequence_info[0])))
+            behavior_sequence = BehaviorSequence(beh_seq)
+            is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
+            if is_final_lane_changed:
+                if behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeLeft:
+                    if LaneId.LeftLane not in self.lane_server_.lanes_:
+                        error_situation = True
+                elif behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeRight:
+                    if LaneId.RightLane not in self.lane_server_.lanes_:
+                        error_situation = True
 
         # ~Stage II: Construct all vehicles
         vehicles = copy.deepcopy(self.surround_vehicle_)
@@ -272,7 +254,7 @@ class Environment:
 
         # ~Stage III: Construct forward extender and predict result trajectories for all vehicles (ego and surround)
         forward_extender = ForwardExtender(self.lane_server_, 0.4, 4.0)
-        ego_traj, surround_trajs = forward_extender.multiAgentForward(behavior_sequence, vehicles, self.lane_speed_limit_)
+        ego_traj, surround_trajs = forward_extender.multiAgentForward(intention_sequence if with_intention else behavior_sequence, vehicles, self.lane_speed_limit_)
 
         # ~Stage IV: calculate cost and transform to reward
         """
@@ -302,8 +284,8 @@ class Environment:
 
     # Run with a action index
     def runOnce(self, action, with_visualization=False, ax=None):
-        beh_seq = ActionInterface.indexToBehSeq(action)
-        reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost = self.simulateBehSeq(beh_seq, with_visualization, ax)
+        beh_seq = ActionInterface.indexToIntentionSeq(action)
+        reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost = self.simulateBehSeq(beh_seq, with_visualization, ax, True)
         return reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost
 
     # DEBUG: visualization lanes
