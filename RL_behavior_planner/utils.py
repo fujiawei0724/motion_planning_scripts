@@ -818,7 +818,10 @@ class ForwardExtender:
 
         # Determine number of forward update
         num_steps_forward = int(self.predict_time_span_ / self.dt_)
-        assert len(ego_potential_behavior_sequence.beh_seq_) == num_steps_forward
+        if isinstance(ego_potential_behavior_sequence, BehaviorSequence):
+            assert len(ego_potential_behavior_sequence.beh_seq_) == num_steps_forward
+        elif isinstance(ego_potential_behavior_sequence, IntentionSequence):
+            assert len(ego_potential_behavior_sequence.intention_seq_) == num_steps_forward
 
         # Determine longitudinal behavior or longitudinal velocity compensation
         longitudinal_behavior = None
@@ -854,7 +857,7 @@ class ForwardExtender:
                 desired_velocity = initial_velocities[veh_id]
                 # init_time_stamp = veh.vehicle_.time_stamp_
                 if veh_id == ego_vehicle_id:
-                    if isinstance(ego_potential_behavior_sequence, IntentionSequence):
+                    if isinstance(ego_potential_behavior_sequence, BehaviorSequence):
                         if longitudinal_behavior == LongitudinalBehavior.Conservative:
                             desired_velocity = max(0.0, desired_velocity - 5.0)
                         elif longitudinal_behavior == LongitudinalBehavior.Normal:
@@ -867,8 +870,13 @@ class ForwardExtender:
                         desired_velocity += longitudinal_velocity_compensation
                         desired_velocity = np.clip(desired_velocity, 0.0, lane_speed_limit)
 
-                # TODO: set vehicles speed limits from reference lane speed limit
-                desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_semantic_vehicles, desired_velocity)
+                desired_veh_state = None
+                if isinstance(ego_potential_behavior_sequence, BehaviorSequence):
+                    desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.beh_seq_[step_index].lat_beh_, cur_semantic_vehicles, desired_velocity)
+                elif isinstance(ego_potential_behavior_sequence, IntentionSequence):
+                    desired_veh_state = self.forwardOnce(veh_id, ego_potential_behavior_sequence.intention_seq_[step_index].lat_beh_, cur_semantic_vehicles, desired_velocity)
+                else:
+                    assert False
 
                 # Cache
                 states_cache[desired_veh_state.id_] = desired_veh_state
