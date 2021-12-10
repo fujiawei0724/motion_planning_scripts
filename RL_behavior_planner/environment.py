@@ -257,8 +257,7 @@ class Environment:
             beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]),
                                            LongitudinalBehavior(behavior_sequence_info[0])))
         behavior_sequence = BehaviorSequence(beh_seq)
-        is_final_lane_changed = True if behavior_sequence.beh_seq_[
-                                            -1].lat_beh_ != LateralBehavior.LaneKeeping else False
+        is_final_lane_changed = True if behavior_sequence.beh_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
         if is_final_lane_changed:
             if behavior_sequence.beh_seq_[-1].lat_beh_ == LateralBehavior.LaneChangeLeft:
                 if LaneId.LeftLane not in self.lane_server_.lanes_:

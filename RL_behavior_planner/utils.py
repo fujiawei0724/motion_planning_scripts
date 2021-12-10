@@ -147,6 +147,14 @@ class VehicleBehavior:
         self.lat_beh_ = lat_beh
         self.lon_beh_ = lon_beh
 
+# Vehicle behavior contains latitudinal behavior and longitudinal speed compensation
+"""
+The candidates for compensation is np.arange(-5.0, 5.0 + EPS, 1.0), probably need to adjust .
+"""
+class VehicleIntention:
+    def __init__(self, lat_beh, velocity_compensation):
+        self.lat_beh_ = lat_beh
+        self.velocity_compensation_ = velocity_compensation
 
 # Define lane id
 @unique
@@ -164,9 +172,7 @@ class BehaviorSequence:
     # DEBUG: print information
     def print(self):
         for veh_beh_index, veh_beh in enumerate(self.beh_seq_):
-            print('Single behavior index: {}, lateral behavior: {}, longitudinal behavior: {}'.format(veh_beh_index,
-                                                                                                      veh_beh.lat_beh_,
-                                                                                                      veh_beh.lon_beh_))
+            print('Single behavior index: {}, lateral behavior: {}, longitudinal behavior: {}'.format(veh_beh_index, veh_beh.lat_beh_, veh_beh.lon_beh_))
 
     # Print information for data transform
     def printInfo(self):
@@ -176,6 +182,17 @@ class BehaviorSequence:
             info.append(veh_beh.lat_beh_.value)
         # print(info)
         return info
+
+
+# Define intention sequence for construct intention space
+class IntentionSequence:
+    def __init__(self, intention_sequence):
+        self.intention_seq_ = intention_sequence
+
+    # DEBUG: print information
+    def print(self):
+        for veh_intention_index, veh_intention in enumerate(self.intention_seq_):
+            print('Single intention index: {}, lateral behavior: {}, longitudinal speed compensation: {}'.format(veh_intention_index, veh_intention.lat_beh_, veh_intention.velocity_compensation_))
 
 
 # Construct available behavior sequence
@@ -195,12 +212,29 @@ class BehaviorGenerator:
                 for lat_beh in LateralBehavior:
                     if lat_beh != LateralBehavior.LaneKeeping:
                         # Add lane change situations
-                        veh_beh_set.append(
-                            self.addBehavior(cur_behavior_sequence, lon_beh, lat_beh, self.seq_length_ - beh_index))
+                        veh_beh_set.append(self.addBehavior(cur_behavior_sequence, lon_beh, lat_beh, self.seq_length_ - beh_index))
                 cur_behavior_sequence.append(VehicleBehavior(LateralBehavior.LaneKeeping, lon_beh))
             veh_beh_set.append(BehaviorSequence(cur_behavior_sequence))
 
         return veh_beh_set
+
+    # Construct vehicle intention set
+    def generateIntends(self):
+        veh_intention_set = []
+        lon_vel_comp_candidates = np.arange(-5.0, 5.0 + 1e-7, 1.0)
+
+        # Traverse longitudinal velocity compensation
+        for lon_vel_comp in lon_vel_comp_candidates:
+            cur_intention_sequence = []
+            for intention_index in range(0, self.seq_length_):
+                for lat_beh in LateralBehavior:
+                    if lat_beh != LateralBehavior.LaneKeeping:
+                        # Add lane change situations
+                        veh_intention_set.append(self.addIntention(cur_intention_sequence, lon_vel_comp, lat_beh, self.seq_length_ - intention_index))
+                cur_intention_sequence.append(VehicleIntention(LateralBehavior.LaneKeeping, lon_vel_comp))
+            veh_intention_set.append(IntentionSequence(cur_intention_sequence))
+
+        return veh_intention_set
 
     # Add lane change situation which start from intermediate time stamp
     @classmethod
@@ -214,6 +248,19 @@ class BehaviorGenerator:
             res_beh_seq.append(VehicleBehavior(lat_beh, lon_beh))
 
         return BehaviorSequence(res_beh_seq)
+
+    # Add lane change situation which start from intermediate time stamp
+    @classmethod
+    def addIntention(cls, cur_intention_seq, vel_comp, lat_beh, num):
+
+        # Initialize
+        res_intention_seq = copy.deepcopy(cur_intention_seq)
+
+        # Add lane change behavior
+        for i in range(0, num):
+            res_intention_seq.append(VehicleIntention(lat_beh, vel_comp))
+
+        return IntentionSequence(res_intention_seq)
 
 
 # Path point class
@@ -1127,4 +1174,8 @@ class EgoInfoGenerator:
         return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.1, 0.1)), length, width, random.uniform(5.0, 7.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
 
 if __name__ == '__main__':
-    pass
+    beh_gene = BehaviorGenerator(10)
+    intention_set = beh_gene.generateIntends()
+    print('Intention set length: {}'.format(len(intention_set)))
+    for intention in intention_set:
+        intention.print()
