@@ -1196,7 +1196,7 @@ class EgoInfoGenerator:
         # Define the constants
         length = 5.0
         width = 1.95
-        curvature = 0.02
+        curvature = random.uniform(-0.02, 0.02)
         steer = np.arctan(curvature * 2.8)
         return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.1, 0.1)), length, width, random.uniform(5.0, 7.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
 
