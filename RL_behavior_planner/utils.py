@@ -1153,6 +1153,8 @@ class PolicyEvaluator:
                 is_collision = True
         if ego_traj.vehicle_states_[-1].velocity_ > lane_speed_limit:
             safety_cost += 100.0
+            # Virtual collision
+            is_collision = True
         return safety_cost, is_collision
 
     # TODO: parameters need to change
