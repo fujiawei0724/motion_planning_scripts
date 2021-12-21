@@ -1055,6 +1055,55 @@ class AgentGenerator:
             agents[this_vehicle.id_] = this_vehicle
         return agents
 
+# Calculate a cost / reward for a policy
+class PolicyEvaluator:
+    @classmethod
+    def praise(cls, ego_traj, sur_trajs, is_lane_changed, lane_speed_limit):
+        safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs, lane_speed_limit)
+        lane_change_cost = cls.calculateLaneChangeCost(is_lane_changed)
+        efficiency_cost = cls.calculateEfficiencyCost(ego_traj, lane_speed_limit)
+        comfort_cost = cls.calculateComfortCost(ego_traj)
+        print('Safety cost: {}'.format(safety_cost))
+        print('Lane change cost: {}'.format(lane_change_cost))
+        print('Efficiency cost: {}'.format(efficiency_cost))
+        print('Comfort cost: {}'.format(comfort_cost))
+        print('All cost: {}'.format(safety_cost + lane_change_cost + efficiency_cost + comfort_cost))
+        return safety_cost + lane_change_cost + efficiency_cost + comfort_cost, is_collision, safety_cost, lane_change_cost, efficiency_cost
+
+    @classmethod
+    def calculateLaneChangeCost(cls, is_lane_changed):
+        return 0.3 if is_lane_changed else 0.0
+
+    @classmethod
+    def calculateSafetyCost(cls, ego_traj, sur_trajs, lane_speed_limit):
+        safety_cost = 0.0
+        is_collision = False
+        for _, judge_sur_traj in sur_trajs.items():
+            cur_safety_cost, is_cur_collision = ego_traj.calculateSafetyCost(judge_sur_traj)
+            safety_cost += cur_safety_cost
+            if is_cur_collision:
+                is_collision = True
+        if ego_traj.vehicle_states_[-1].velocity_ > lane_speed_limit:
+            safety_cost += 100.0
+            # Virtual collision
+            is_collision = True
+        return safety_cost, is_collision
+
+    # TODO: parameters need to change
+    @classmethod
+    def calculateEfficiencyCost(cls, ego_traj, lane_speed_limit):
+        return (lane_speed_limit - ego_traj.vehicle_states_[-1].velocity_) / 10.0
+
+    @classmethod
+    def calculateComfortCost(cls, ego_traj):
+        lat_accs = []
+        for pred_state in ego_traj.vehicle_states_:
+            lat_accs.append(pred_state.velocity_ ** 2.0 * pred_state.curvature_)
+        lat_jerk_mod = 0
+        for i in range(0, len(lat_accs) - 1):
+            lat_jerk_mod += (lat_accs[i + 1] - lat_accs[i]) ** 2.0
+        return lat_jerk_mod
+
 
 if __name__ == '__main__':
     pass

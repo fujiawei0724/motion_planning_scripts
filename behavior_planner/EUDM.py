@@ -33,9 +33,9 @@ if __name__ == '__main__':
     # Initialize ego vehicle
     # Note that the initial curvature and steer must be a normal and conservative value
     # Absolute value of curvature should le limited to 0.05
-    curvature = -0.05
+    curvature = 0.0
     steer = np.arctan(curvature * 2.8)
-    ego_vehicle = Vehicle(0, PathPoint(20.0, 0.0, 0.0), 5.0, 2.0, 5.0, 0.0, 0.0, curvature, steer)
+    ego_vehicle = Vehicle(0, PathPoint(20.0, 0.0, 0.0), 5.0, 2.0, 0.0, 0.0, 0.0, curvature, steer)
     ego_vehicle_polygon = Polygon(ego_vehicle.rectangle_.vertex_)
 
     # Initialize behavior generator
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     # Set random seed
     random.seed(16856)
     behavior_set_length = len(behavior_set)
-    behavior_sequence = behavior_set[51]
+    behavior_sequence = behavior_set[50]
     behavior_sequence.print()
 
     # Generate surround agent vehicles
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     #     lane_change_right_ego_trajectory, lane_change_right_surround_trajectories = forward_extender.multiAgentForward(LateralBehavior.LaneChangeRight)
 
     # Calculate cost for each policy
-    # TODO: add cost calculation for EUDM
+    cost, _, _, _, _ = PolicyEvaluator.praise(behavior_sequence_ego_trajectory, behavior_sequence_surround_trajectories, True, 20.0)
 
     # Visualization initialization
     plt.figure(1, (12, 6))
