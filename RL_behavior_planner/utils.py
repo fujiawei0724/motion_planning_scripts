@@ -1133,10 +1133,13 @@ class PolicyEvaluator:
         safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs, lane_speed_limit)
         lane_change_cost = cls.calculateLaneChangeCost(is_lane_changed)
         efficiency_cost = cls.calculateEfficiencyCost(ego_traj, lane_speed_limit)
+        comfort_cost = cls.calculateComfortCost(ego_traj)
         print('Safety cost: {}'.format(safety_cost))
         print('Lane change cost: {}'.format(lane_change_cost))
         print('Efficiency cost: {}'.format(efficiency_cost))
-        return safety_cost + lane_change_cost + efficiency_cost, is_collision, safety_cost, lane_change_cost, efficiency_cost
+        print('Comfort cost: {}'.format(comfort_cost))
+        print('All cost: {}'.format(safety_cost + lane_change_cost + efficiency_cost + comfort_cost))
+        return safety_cost + lane_change_cost + efficiency_cost + comfort_cost, is_collision, safety_cost, lane_change_cost, efficiency_cost
 
     @classmethod
     def calculateLaneChangeCost(cls, is_lane_changed):
@@ -1161,6 +1164,16 @@ class PolicyEvaluator:
     @classmethod
     def calculateEfficiencyCost(cls, ego_traj, lane_speed_limit):
         return (lane_speed_limit - ego_traj.vehicle_states_[-1].velocity_) / 10.0
+
+    @classmethod
+    def calculateComfortCost(cls, ego_traj):
+        lat_accs = []
+        for pred_state in ego_traj.vehicle_states_:
+            lat_accs.append(pred_state.velocity_ ** 2.0 * pred_state.curvature_)
+        lat_jerk_mod = 0
+        for i in range(0, len(lat_accs) - 1):
+            lat_jerk_mod += (lat_accs[i + 1] - lat_accs[i]) ** 2.0
+        return lat_jerk_mod
 
 
 # Agent vehicle generator (without ego vehicle)
