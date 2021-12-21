@@ -1186,7 +1186,7 @@ class AgentGenerator:
     def generateSingleAgent(self, index):
         agent_length = random.uniform(4.0, 6.0)
         agent_width = random.uniform(1.8, 2.5)
-        agent_velocity = random.uniform(0.0, 25.0)
+        agent_velocity = random.uniform(8.0, 25.0)
         agent_acceleration = random.uniform(-1.0, 1.0)
 
         x_position = random.uniform(0.0, 100.0)
@@ -1213,7 +1213,7 @@ class EgoInfoGenerator:
         width = 1.95
         curvature = random.uniform(-0.02, 0.02)
         steer = np.arctan(curvature * 2.8)
-        return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.1, 0.1)), length, width, random.uniform(5.0, 7.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
+        return Vehicle(0, PathPoint(random.uniform(29.0, 31.0), random.uniform(-1.0, 1.0), random.uniform(-0.1, 0.1)), length, width, random.uniform(0.0, 22.0), random.uniform(-2.0, 1.5), 0.0, curvature, steer)
 
 if __name__ == '__main__':
     beh_gene = BehaviorGenerator(10)
