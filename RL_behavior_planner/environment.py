@@ -284,8 +284,8 @@ class Environment:
 
     # Run with a action index
     def runOnce(self, action, with_visualization=False, ax=None):
-        beh_seq = ActionInterface.indexToIntentionSeq(action)
-        reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost = self.simulateBehSeq(beh_seq, with_visualization, ax, True)
+        beh_seq = ActionInterface.indexToBehSeq(action)
+        reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost = self.simulateBehSeq(beh_seq, with_visualization, ax, False)
         return reward, next_state, done, safety_cost, lane_change_cost, efficiency_cost
 
     # DEBUG: visualization lanes

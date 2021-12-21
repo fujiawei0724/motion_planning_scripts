@@ -32,7 +32,7 @@ class DDQNTrainer:
         # Define device
         self._device = torch.device('cuda:0')
         # Define action
-        self._action = np.arange(0, 231, 1)
+        self._action = np.arange(0, 63, 1)
 
         # Define train constants
         # TODO: adjust parameters
@@ -54,8 +54,8 @@ class DDQNTrainer:
 
         # Define network parameters
         state_length = 94
-        self._policy_net = DQN(state_length, 231).to(self._device)
-        self._target_net = DQN(state_length, 231).to(self._device)
+        self._policy_net = DQN(state_length, 63).to(self._device)
+        self._target_net = DQN(state_length, 63).to(self._device)
         self._policy_net.apply(self._policy_net.initWeights)
         self._target_net.load_state_dict(self._policy_net.state_dict())
         self._target_net.eval()
