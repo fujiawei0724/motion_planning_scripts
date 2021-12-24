@@ -41,7 +41,7 @@ class DDQNTrainer:
         self._eps_decay = 1000000
         self._gamma = 0.5
         self._batch_size = 64
-        self._buffer_full = 64
+        self._buffer_full = 10000
         self._buffer_size = 50000
         self._target_update = 10000
         self._optimize_frequency = 4
@@ -173,7 +173,7 @@ class DDQNTrainer:
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
-            lane_speed_limit = random.uniform(10.0, 25.0)
+            lane_speed_limit = random.uniform(22.22, 27.77)
             env = Environment()
 
             # Vehicles information reset iteration
