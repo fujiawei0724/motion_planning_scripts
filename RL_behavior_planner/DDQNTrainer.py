@@ -16,7 +16,7 @@ import time
 import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
-from Double_DQN_net import DQN
+from Double_DQN_net import DQN, DQN_resi
 from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
@@ -41,7 +41,7 @@ class DDQNTrainer:
         self._eps_decay = 1000000
         self._gamma = 0.5
         self._batch_size = 64
-        self._buffer_full = 64
+        self._buffer_full = 10000
         self._buffer_size = 50000
         self._target_update = 10000
         self._optimize_frequency = 4
@@ -54,9 +54,9 @@ class DDQNTrainer:
 
         # Define network parameters
         state_length = 94
-        self._policy_net = DQN(state_length, 231).to(self._device)
-        self._target_net = DQN(state_length, 231).to(self._device)
-        self._policy_net.apply(self._policy_net.initWeights)
+        self._policy_net = DQN_resi(state_length, 231).to(self._device)
+        self._target_net = DQN_resi(state_length, 231).to(self._device)
+        # self._policy_net.apply(self._policy_net.initWeights)
         self._target_net.load_state_dict(self._policy_net.state_dict())
         self._target_net.eval()
 
