@@ -12,7 +12,7 @@ Convert the formation of the trained model to be deployed in C++.
 
 import torch
 import torchvision
-from Double_DQN_net import DQN
+from Double_DQN_net import DQN, DQN_resi
 
 if __name__ == '__main__':
     # Official model
