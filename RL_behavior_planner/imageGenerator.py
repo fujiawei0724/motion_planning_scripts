@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-05 18:08:12
+LastEditTime: 2022-05-05 21:02:20
 Description: Generate the image to represent state.
 '''
 
@@ -19,8 +19,8 @@ white = (255, 255, 255)
 class ImageGenerator:
     '''
     description: initialize the size of the image.
-    '''    
-    def __init__(self, size=(300, 60, 1), lane_width=3.5, scale=3.0):
+    '''     
+    def __init__(self, size=(600, 120, 1), lane_width=3.5, scale=6.0):
         self.image_size_ = size
         self.lane_width_ = lane_width
         self.scale_ = scale
