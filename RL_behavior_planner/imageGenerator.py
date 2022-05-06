@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-05 21:02:20
+LastEditTime: 2022-05-06 18:20:38
 Description: Generate the image to represent state.
 '''
 
@@ -20,7 +20,7 @@ class ImageGenerator:
     '''
     description: initialize the size of the image.
     '''     
-    def __init__(self, size=(600, 120, 1), lane_width=3.5, scale=6.0):
+    def __init__(self, size=(300, 60, 1), lane_width=3.5, scale=3.0):
         self.image_size_ = size
         self.lane_width_ = lane_width
         self.scale_ = scale
@@ -47,20 +47,21 @@ class ImageGenerator:
         # Supple surround vehicles
         for sur_veh in surround_vehicles_info.values():
             # v_1, v_2, v_3, v_4 = self.calculateVertice(sur_veh)
-            print('Frenet x: {}, y: {}, theta: {}'.format(sur_veh.position_.x_, sur_veh.position_.y_, sur_veh.position_.theta_))
+            # print('Frenet x: {}, y: {}, theta: {}'.format(sur_veh.position_.x_, sur_veh.position_.y_, sur_veh.position_.theta_))
             # print('Image x: {}, y: {}'.format(self.positionTransform(v_1), self.positionTransform(v_2)))
             veh_rotated_rec = self.calculateRotatedRectangleInfo(sur_veh)
             box = cv2.boxPoints(veh_rotated_rec)
             box = np.int0(box)
             cv2.drawContours(canvas, [box], 0, black, -1)
 
-        cv2.imshow('Canvas', canvas)
-        cv2.waitKey(0)
+        # cv2.imshow('Canvas', canvas)
+        # cv2.waitKey(0)
+        # print(canvas.shape)
+        canvas = canvas.transpose(2, 0, 1)
+        return canvas
 
     '''
     description: calculate the information for drawing rotated rectangles
-    param {*}
-    return {*}
     '''   
     def calculateRotatedRectangleInfo(self, vehicle):
         # center_position = PathPoint(vehicle.position_.x_ * self.scale_, vehicle.position_.y_ * self.scale_, vehicle.position_.theta_)
@@ -69,23 +70,6 @@ class ImageGenerator:
         width = vehicle.width_ * self.scale_
         return (self.positionTransform(center_pos), (length, width), -vehicle.position_.theta_ * 180.0 / np.pi + 90)
     
-    '''
-    description: calculate the rectangle's vertice of a vehicle.
-    '''
-    def calculateVertice(self, vehicle):
-        center_position = PathPoint(vehicle.position_.x_ * self.scale_, vehicle.position_.y_ * self.scale_, vehicle.position_.theta_)
-        length = vehicle.length_ * self.scale_
-        width = vehicle.width_ * self.scale_
-        v_1 = (round(center_position.x_ + length * 0.5 * np.cos(center_position.theta_) - width * 0.5 * np.sin(center_position.theta_)), 
-              round(center_position.y_ + length * 0.5 * np.sin(center_position.theta_) + width * 0.5 * np.cos(center_position.theta_)))
-        v_2 = (round(center_position.x_ + length * 0.5 * np.cos(center_position.theta_) + width * 0.5 * np.sin(center_position.theta_)), 
-              round(center_position.y_ + length * 0.5 * np.sin(center_position.theta_) - width * 0.5 * np.cos(center_position.theta_)))
-        v_3 = (round(center_position.x_ - length * 0.5 * np.cos(center_position.theta_) + width * 0.5 * np.sin(center_position.theta_)), 
-              round(center_position.y_ - length * 0.5 * np.sin(center_position.theta_) - width * 0.5 * np.cos(center_position.theta_)))
-        v_4 = (round(center_position.x_ - length * 0.5 * np.cos(center_position.theta_) - width * 0.5 * np.sin(center_position.theta_)), 
-              round(center_position.y_ - length * 0.5 * np.sin(center_position.theta_) + width * 0.5 * np.cos(center_position.theta_)))
-
-        return v_1, v_2, v_3, v_4
     
     '''
     description: transform the position from frenet to image. 
