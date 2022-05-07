@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-05 21:06:19
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-06 19:05:15
+LastEditTime: 2022-05-07 17:45:54
 Description: network structure
 '''
 
@@ -51,17 +51,16 @@ class BackboneNetwork(nn.Module):
         self.output = nn.Linear(512, output_dim)
     
     def forward(self, x, s):
-        assert x.size(dim=0) == self.input_seq_length
         processed_xs = []
         for i, branch in enumerate(self.convs):
-            cur_x = branch(x[i].unsqueeze(0))
-            cur_x = cur_x.view(-1, 40 * 61 * 1)
+            cur_x = branch(x[:, i, :, :, :])
+            cur_x = cur_x.view(-1, 1, 40 * 61 * 1)
             processed_xs.append(cur_x)
-        concat_x = torch.cat(processed_xs, 0).unsqueeze(0)
+            # print('Cur x size: {}'.format(cur_x.size()))
+        concat_x = torch.cat(processed_xs, 1)
         # print('Concatenated_x size: {}'.format(concat_x.size()))
         x, _ = self.lstm(concat_x)
         x = x[:, -1, :]
-        s = s.unsqueeze(0)
         x = torch.cat((x, s), 1)
         x = self.fc1(x)
         x = self.fc2(x)
@@ -69,7 +68,6 @@ class BackboneNetwork(nn.Module):
         return x
 
 if __name__ == '__main__':
-
     # Produce test observe scenes sequence
     lane_info = [1, 1, 4.0, 4.0]
     agent_generator = AgentGenerator(lane_info[0], lane_info[1], lane_info[2], lane_info[3])
@@ -89,10 +87,26 @@ if __name__ == '__main__':
     # Test data input
     device = torch.device('cuda:0')
     model = BackboneNetwork(10, 512, 2, 231).to(device)
-    observed_scene_seq = torch.from_numpy(observed_scene_seq).to(torch.float32).to(device)
-    ego_vehicle_state = torch.from_numpy(ego_vehicle_state).to(torch.float32).to(device)
-    output = model(observed_scene_seq, ego_vehicle_state)
-    print('Ouput size: {}'.format(output.size()))
+    # observed_scene_seq = torch.from_numpy(observed_scene_seq).to(torch.float32).to(device).unsqueeze(0)
+    # ego_vehicle_state = torch.from_numpy(ego_vehicle_state).to(torch.float32).to(device).unsqueeze(0)
+    # print('Input size_1: {}'.format(observed_scene_seq.size()))
+    # print('Input size_2: {}'.format(ego_vehicle_state.size()))
+    # output = model(observed_scene_seq, ego_vehicle_state)
+    # print('Ouput size: {}'.format(output.size()))
+
+    # Test batch data input
+    observed_scene_seq_batch, ego_vehicle_state_batch = [], []
+    for _ in range(1):
+        observed_scene_seq_batch.append(observed_scene_seq)
+        ego_vehicle_state_batch.append(ego_vehicle_state)
+    observed_scene_seq_batch = np.array(observed_scene_seq_batch)
+    ego_vehicle_state_batch = np.array(ego_vehicle_state_batch)
+    observed_scene_seq_batch = torch.from_numpy(observed_scene_seq_batch).to(torch.float32).to(device)
+    ego_vehicle_state_batch = torch.from_numpy(ego_vehicle_state_batch).to(torch.float32).to(device)
+    print('Input size_1: {}'.format(observed_scene_seq_batch.size()))
+    print('Input size_2: {}'.format(ego_vehicle_state_batch.size()))
+    output_batch = model(observed_scene_seq_batch, ego_vehicle_state_batch)
+    print('Output size: {}'.format(output_batch.size()))
 
     # Visualize network structure
     # with SummaryWriter('./log', comment='network visualization') as sw:
