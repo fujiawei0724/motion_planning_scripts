@@ -50,8 +50,9 @@ class StateInterface:
         return all_state_array
 
     @staticmethod
-    def netDataToWorld():
-        pass
+    def netDataAllToWorld(all_state_array):
+        lane_info_with_speed = all_state_array[:5]
+        ego_vehicle = Vehicle(0, PathPoint(all_state_array[5], all_state_array[6], all_state_array[7]), all_state_array[8], all_state_array[9], all_state_array[10], all_state_array[11], None, all_state_array[12], all_state_array[13])
 
     # Calculate next state
     @staticmethod

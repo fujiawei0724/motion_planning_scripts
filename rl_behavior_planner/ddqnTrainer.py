@@ -17,6 +17,9 @@ import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
 from ddqnNet import DQN, DQN_resi
+from lstm import BackboneNetwork
+from imageGenerator import ImageGenerator
+from statesSimulator import StatesSimulator
 from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
@@ -77,7 +80,6 @@ class DDQNTrainer:
             os.makedirs(self._save_path)
         self._summary_writer = SummaryWriter('./DDQN_logs/')
 
-    # TODO: in our problem, what is environmental exploration mean? In other word, is continuous exploration valid?
     # Select action for train
     def selectAction(self, current_state, use_random=True):
         current_state = torch.from_numpy(current_state).to(torch.float32).to(self._device)
@@ -142,6 +144,10 @@ class DDQNTrainer:
 
     # Train
     def train(self):
+
+        # Initialize states simulator to create previous observations
+        states_simulator = StatesSimulator()
+
         # Environment information reset iteration
         for env_reset_episode in range(0, self._max_environment_reset_episode):
             # Construct training environment
@@ -149,8 +155,12 @@ class DDQNTrainer:
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
+            lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
             lane_speed_limit = random.uniform(10.0, 25.0)
             env = Environment()
+
+            # Initialize image generator
+            image_generator = ImageGenerator(lane_info)
 
             # Vehicles information reset iteration
             for vehicles_reset_episode in range(0, self._max_vehicle_info_reset_num):
@@ -165,7 +175,15 @@ class DDQNTrainer:
                     continue
 
                 # Transform to state array
+                # TODO: delete state array, make the input of the environment paralleled with the generator
                 current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
+
+                # Generate observation results and ego vehicle state
+                states_simulator.loadCurrentState(lane_info, ego_vehicle, surround_vehicles)
+                _, sur_vehs_states_t_order = states_simulator.runOnce()
+                
+
+
 
                 # Load all information to env
                 env.load(current_state_array)

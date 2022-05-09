@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-07 18:09:21
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 21:00:59
+LastEditTime: 2022-05-09 21:34:09
 Description: simulate the states sequence from the current observed state.
 '''
 
@@ -28,7 +28,10 @@ class StatesSimulator:
         self.ego_vehicle_ = None
         self.surround_vehicles_ = None
     
-
+    '''
+    description: supply information from state array.
+    TODO: delete this interface
+    '''
     def loadCurrentState(self, state_array):
         pass
 
