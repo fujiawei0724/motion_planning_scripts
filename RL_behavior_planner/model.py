@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-05 21:06:19
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-07 17:45:54
+LastEditTime: 2022-05-07 17:57:54
 Description: network structure
 '''
 
@@ -54,11 +54,9 @@ class BackboneNetwork(nn.Module):
         processed_xs = []
         for i, branch in enumerate(self.convs):
             cur_x = branch(x[:, i, :, :, :])
-            cur_x = cur_x.view(-1, 1, 40 * 61 * 1)
+            cur_x = cur_x.view(cur_x.size(0), -1, 40*61*1)
             processed_xs.append(cur_x)
-            # print('Cur x size: {}'.format(cur_x.size()))
         concat_x = torch.cat(processed_xs, 1)
-        # print('Concatenated_x size: {}'.format(concat_x.size()))
         x, _ = self.lstm(concat_x)
         x = x[:, -1, :]
         x = torch.cat((x, s), 1)
@@ -96,7 +94,7 @@ if __name__ == '__main__':
 
     # Test batch data input
     observed_scene_seq_batch, ego_vehicle_state_batch = [], []
-    for _ in range(1):
+    for _ in range(128):
         observed_scene_seq_batch.append(observed_scene_seq)
         ego_vehicle_state_batch.append(ego_vehicle_state)
     observed_scene_seq_batch = np.array(observed_scene_seq_batch)

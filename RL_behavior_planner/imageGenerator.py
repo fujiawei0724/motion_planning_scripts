@@ -2,12 +2,13 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-06 18:20:38
+LastEditTime: 2022-05-09 17:59:28
 Description: Generate the image to represent state.
 '''
 
 import sys
-sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
+    sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import cv2
 import numpy as np
 from utils import *
@@ -33,7 +34,7 @@ class ImageGenerator:
     return:
     An image represents the state information.
     '''    
-    def generateSingleImage(self, lane_info, surround_vehicles_info):
+    def generateSingleImage(self, lane_info, surround_vehicles_info, drawing=False):
         # Initialize canvas 
         canvas = np.zeros(self.image_size_, dtype='uint8')
 
@@ -57,7 +58,8 @@ class ImageGenerator:
         # cv2.imshow('Canvas', canvas)
         # cv2.waitKey(0)
         # print(canvas.shape)
-        canvas = canvas.transpose(2, 0, 1)
+        if not drawing:
+            canvas = canvas.transpose(2, 0, 1)
         return canvas
 
     '''
