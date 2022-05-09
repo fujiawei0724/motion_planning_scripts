@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-07 18:09:21
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 21:34:09
+LastEditTime: 2022-05-09 22:18:03
 Description: simulate the states sequence from the current observed state.
 '''
 
@@ -12,8 +12,9 @@ if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
 import cv2
 import numpy as np 
 from collections import defaultdict
-from utils import *
 from imageGenerator import ImageGenerator
+from environment import StateInterface
+from utils import *
 
 
 class StatesSimulator:
@@ -30,10 +31,11 @@ class StatesSimulator:
     
     '''
     description: supply information from state array.
-    TODO: delete this interface
+    TODO: delete this interface, unify the interface.
     '''
     def loadCurrentState(self, state_array):
-        pass
+        lane_info_with_speed, ego_vehicle, surround_vehicles = StateInterface.netDataAllToWorld(state_array)
+        self.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
 
     '''
     description: supply information.

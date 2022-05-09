@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-05 21:06:19
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 21:49:22
+LastEditTime: 2022-05-09 21:58:32
 Description: network structure
 '''
 
@@ -68,19 +68,20 @@ class BackboneNetwork(nn.Module):
 if __name__ == '__main__':
     # Produce test observe scenes sequence
     lane_info = [1, 1, 4.0, 4.0]
+    lane_speed_limit = 20.0
     agent_generator = AgentGenerator(lane_info[0], lane_info[1], lane_info[2], lane_info[3])
-    image_generator = ImageGenerator()
+    image_generator = ImageGenerator(lane_info)
     observed_scene_seq = []
     for _ in range(10):
         surround_vehicles = agent_generator.generateAgents(10)
-        observed_scene = image_generator.generateSingleImage(lane_info, surround_vehicles)
+        observed_scene = image_generator.generateSingleImage(surround_vehicles)
         observed_scene_seq.append(observed_scene)
     observed_scene_seq = np.array(observed_scene_seq)
     # print(observed_scene_seq.shape)
 
-    # Produce ego vehicle states
+    # Produce ego vehicle states and lane speed limit
     ego_vehicle = EgoInfoGenerator.generateOnce()
-    ego_vehicle_state = np.array([ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_])
+    additional_state = np.array([ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
     # Test data input
     device = torch.device('cuda:0')
@@ -93,17 +94,17 @@ if __name__ == '__main__':
     # print('Ouput size: {}'.format(output.size()))
 
     # Test batch data input
-    observed_scene_seq_batch, ego_vehicle_state_batch = [], []
+    observed_scene_seq_batch, additional_state_batch = [], []
     for _ in range(128):
         observed_scene_seq_batch.append(observed_scene_seq)
-        ego_vehicle_state_batch.append(ego_vehicle_state)
+        additional_state_batch.append(additional_state)
     observed_scene_seq_batch = np.array(observed_scene_seq_batch)
-    ego_vehicle_state_batch = np.array(ego_vehicle_state_batch)
+    additional_state_batch = np.array(additional_state_batch)
     observed_scene_seq_batch = torch.from_numpy(observed_scene_seq_batch).to(torch.float32).to(device)
-    ego_vehicle_state_batch = torch.from_numpy(ego_vehicle_state_batch).to(torch.float32).to(device)
+    additional_state_batch = torch.from_numpy(additional_state_batch).to(torch.float32).to(device)
     print('Input size_1: {}'.format(observed_scene_seq_batch.size()))
-    print('Input size_2: {}'.format(ego_vehicle_state_batch.size()))
-    output_batch = model(observed_scene_seq_batch, ego_vehicle_state_batch)
+    print('Input size_2: {}'.format(additional_state_batch.size()))
+    output_batch = model(observed_scene_seq_batch, additional_state_batch)
     print('Output size: {}'.format(output_batch.size()))
 
     # Visualize network structure

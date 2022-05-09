@@ -16,7 +16,6 @@ import time
 import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
-from Double_DQN_net import DQN
 from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *

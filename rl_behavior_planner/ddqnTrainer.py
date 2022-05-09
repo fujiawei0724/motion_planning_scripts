@@ -157,6 +157,7 @@ class DDQNTrainer:
             center_right_distance = random.uniform(3.0, 4.5)
             lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
             lane_speed_limit = random.uniform(10.0, 25.0)
+            lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit]
             env = Environment()
 
             # Initialize image generator
@@ -178,13 +179,6 @@ class DDQNTrainer:
                 # TODO: delete state array, make the input of the environment paralleled with the generator
                 current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
 
-                # Generate observation results and ego vehicle state
-                states_simulator.loadCurrentState(lane_info, ego_vehicle, surround_vehicles)
-                _, sur_vehs_states_t_order = states_simulator.runOnce()
-                
-
-
-
                 # Load all information to env
                 env.load(current_state_array)
 
@@ -198,10 +192,22 @@ class DDQNTrainer:
 
                     # Generate behavior
                     action = self.selectAction(current_state_array)
+
                     # Execute selected action
                     reward, next_state_array, done, _, _, _ = env.runOnce(action)
+
+                    # Transform the format of the data
+                    # TODO: unify the interface, delete tedious transformation
+                    _, cur_ego_vehicle, cur_surround_vehicles = StateInterface.netDataAllToWorld(current_state_array)
+                    _, next_ego_vehicle, next_surround_vehicles =  StateInterface.netDataAllToWorld(next_state_array)
+
+                    # Calculate observations sequence 
+
+                    
+
                     # Store information to memory buffer
                     self._memory_replay.update(Transition(torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self._device), action, torch.from_numpy(next_state_array).unsqueeze(0).to(torch.float32).to(self._device), reward, done))
+
                     # Update environment and current state
                     current_state_array = next_state_array
                     env.load(current_state_array)

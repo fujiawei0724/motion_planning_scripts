@@ -51,8 +51,26 @@ class StateInterface:
 
     @staticmethod
     def netDataAllToWorld(all_state_array):
+        # Supply lane information and ego vehicle state
         lane_info_with_speed = all_state_array[:5]
         ego_vehicle = Vehicle(0, PathPoint(all_state_array[5], all_state_array[6], all_state_array[7]), all_state_array[8], all_state_array[9], all_state_array[10], all_state_array[11], None, all_state_array[12], all_state_array[13])
+
+        # Supple surround vehicles states
+        surround_vehicles = {}
+        cur_veh_index = 1
+        for i in range(14, 94, 8):
+            # Judge the existence of the current vehicle
+            if all_state_array[i] != 1:
+                break
+            
+            # Create single surround vehicle
+            sur_veh = Vehicle(cur_veh_index, PathPoint(all_state_array[i + 1], all_state_array[i + 2], all_state_array[i + 3]), all_state_array[i + 4], all_state_array[i + 5], all_state_array[i + 6], all_state_array[i + 7])
+            surround_vehicles[cur_veh_index] = sur_veh
+            cur_veh_index += 1
+        
+        return lane_info_with_speed, ego_vehicle, surround_vehicles
+
+
 
     # Calculate next state
     @staticmethod
