@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 17:59:28
+LastEditTime: 2022-05-09 20:58:24
 Description: Generate the image to represent state.
 '''
 
@@ -21,7 +21,8 @@ class ImageGenerator:
     '''
     description: initialize the size of the image.
     '''     
-    def __init__(self, size=(300, 60, 1), lane_width=3.5, scale=3.0):
+    def __init__(self, lane_info, size=(300, 60, 1), lane_width=3.5, scale=3.0):
+        self.lane_info_ = lane_info
         self.image_size_ = size
         self.lane_width_ = lane_width
         self.scale_ = scale
@@ -34,16 +35,16 @@ class ImageGenerator:
     return:
     An image represents the state information.
     '''    
-    def generateSingleImage(self, lane_info, surround_vehicles_info, drawing=False):
+    def generateSingleImage(self, surround_vehicles_info, drawing=False):
         # Initialize canvas 
         canvas = np.zeros(self.image_size_, dtype='uint8')
 
         # Supple lanes
         cv2.line(canvas, (round(self.image_size_[1] / 2), 0), (round(self.image_size_[1] / 2), self.image_size_[0]), white, round(self.lane_width_ * self.scale_))
-        if lane_info[0] == 1:
-            cv2.line(canvas, (round(self.image_size_[1] / 2 + lane_info[2] * self.scale_ / 2), 0), (round(self.image_size_[1] / 2 + lane_info[2] * self.scale_ / 2), self.image_size_[0]), white, round(self.lane_width_ * self.scale_))
-        if lane_info[1] == 1:
-            cv2.line(canvas, (round(self.image_size_[1] / 2 - lane_info[3] * self.scale_ / 2), 0), (round(self.image_size_[1] / 2 - lane_info[3] * self.scale_ / 2), self.image_size_[0]), white, round(self.lane_width_ * self.scale_))
+        if self.lane_info_[0] == 1:
+            cv2.line(canvas, (round(self.image_size_[1] / 2 + self.lane_info_[2] * self.scale_ / 2), 0), (round(self.image_size_[1] / 2 + self.lane_info_[2] * self.scale_ / 2), self.image_size_[0]), white, round(self.lane_width_ * self.scale_))
+        if self.lane_info_[1] == 1:
+            cv2.line(canvas, (round(self.image_size_[1] / 2 - self.lane_info_[3] * self.scale_ / 2), 0), (round(self.image_size_[1] / 2 - self.lane_info_[3] * self.scale_ / 2), self.image_size_[0]), white, round(self.lane_width_ * self.scale_))
 
         # Supple surround vehicles
         for sur_veh in surround_vehicles_info.values():
@@ -114,7 +115,9 @@ if __name__ == '__main__':
     lane_info = [1, 1, 4.0, 4.0]
     agent_generator = AgentGenerator(lane_info[0], lane_info[1], lane_info[2], lane_info[3])
     surround_vehicles = agent_generator.generateAgents(10)
-    image_generator = ImageGenerator()
+    image_generator = ImageGenerator(lane_info)
     # cur_vehicle = Vehicle(0, PathPoint(30.0, 0.0, -30.0 / 180.0 * np.pi), 5.0, 2.0, 10.0, 0.0, None, 0.0, 0.0)
     # test_vehicles = {0: cur_vehicle}
-    image_generator.generateSingleImage(lane_info, surround_vehicles)
+    canvas = image_generator.generateSingleImage(surround_vehicles, True)
+    cv2.imshow('Canvas', canvas)
+    cv2.waitKey(0)

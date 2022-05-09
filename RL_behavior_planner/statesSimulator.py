@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-07 18:09:21
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 18:30:51
+LastEditTime: 2022-05-09 21:00:59
 Description: simulate the states sequence from the current observed state.
 '''
 
@@ -119,16 +119,16 @@ if __name__ == '__main__':
     ego_vehicle = EgoInfoGenerator.generateOnce()
     surround_vehicles = agent_generator.generateAgents(1)
 
-    image_generator = ImageGenerator()
+    image_generator = ImageGenerator(lane_info)
     states_simulator = StatesSimulator()
 
     # Create states sequence and draw BEV
     states_simulator.loadCurrentState(lane_info, ego_vehicle, surround_vehicles)
     ego_veh_states_seq, sur_veh_states_t_order = states_simulator.runOnce()
     for t, sur_veh_states in sur_veh_states_t_order.items():
-        # # Add ego vehicle
+        # # Add ego vehicle for testing
         # sur_veh_states[0] = ego_veh_states_seq[t]
-        canvas = image_generator.generateSingleImage(lane_info, sur_veh_states, True)
+        canvas = image_generator.generateSingleImage( sur_veh_states, True)
         cv2.imshow('Canvas_{}'.format(t), canvas)
         cv2.waitKey(0)
 

@@ -16,7 +16,7 @@ import time
 import torch
 from collections import namedtuple
 from tensorboardX import SummaryWriter
-from Double_DQN_net import DQN, DQN_resi
+from ddqnNet import DQN, DQN_resi
 from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
@@ -65,30 +65,6 @@ class DDQNTrainer:
 
         # Define memory buffer
         self._memory_replay = MemoryReplay(self._buffer_size)
-
-        # """
-        # DEBUG: add initial data to warm start up
-        # """
-        # # Read data
-        # with h5py.File('./data/data.h5', 'r') as f:
-        #     # print(f.keys())
-        #     actions = f['actions'][()]
-        #     current_states = f['current_states'][()]
-        #     dones = f['dones'][()]
-        #     next_states = f['next_states'][()]
-        #     rewards = f['rewards'][()]
-        # for _ in range(0, 64):
-        #     ran_index = random.randint(0, 999)
-        #     action = actions[ran_index]
-        #     current_state = current_states[ran_index]
-        #     done = dones[ran_index]
-        #     next_state = next_states[ran_index]
-        #     reward = rewards[ran_index]
-        #     transition = Transition(torch.from_numpy(current_state).unsqueeze(0).to(torch.float32).to(self._device), torch.IntTensor([action]).to(self._device), torch.from_numpy(next_state).unsqueeze(0).to(torch.float32).to(self._device), reward, done)
-        #     self._memory_replay.update(transition)
-        # """
-        # END DEBUG
-        # """
 
         # Record optimization iteration number
         self._steps_done = 0
