@@ -81,8 +81,10 @@ class DDQNTrainer:
         self._summary_writer = SummaryWriter('./DDQN_logs/')
 
     # Select action for train
-    def selectAction(self, current_state, use_random=True):
-        current_state = torch.from_numpy(current_state).to(torch.float32).to(self._device)
+    def selectAction(self, observations, additional_states, use_random=True):
+        # current_state = torch.from_numpy(current_state).to(torch.float32).to(self._device)
+        observations = torch.from_numpy(observations).to(torch.float32).to(self._device).unsqueeze(0)
+        additional_states = torch.from_numpy(additional_states).to(torch.float32).to(self._device).unsqueeze(0)
         if use_random:
             sample = random.random()
             eps_threshold = self._eps_start + (self._eps_end - self._eps_start) * min(self._steps_done / self._eps_decay, 1.0)
@@ -91,7 +93,7 @@ class DDQNTrainer:
                 action = torch.IntTensor([random.choice(self._action)]).to(self._device)
             else:
                 with torch.no_grad():
-                    action = self._policy_net(current_state.to(self._device)).unsqueeze(0).max(1)[1]
+                    action = self._policy_net(observations, additional_states).max(1)[1]
             return action
         else:
             sample = random.random()
@@ -101,7 +103,7 @@ class DDQNTrainer:
                 action = torch.IntTensor([random.choice(self._action)]).to(self._device)
             else:
                 with torch.no_grad():
-                    action = self._policy_net(current_state.to(self._device)).unsqueeze(0).max(1)[1]
+                    action = self._policy_net(observations, additional_states).max(1)[1]
             return action
 
     # Optimization for net
@@ -109,26 +111,30 @@ class DDQNTrainer:
         # Load data from memory
         memory_batch = self._memory_replay.getBatch(self._batch_size)
         # Split data
-        state_batch, action_batch, next_state_batch, reward_batch, done_batch = [], [], [], [], []
+        cur_observations_batch, cur_additional_states_batch, action_batch, next_observations_batch, next_additional_states_batch, reward_batch, done_batch = [], [], [], [], [], [], []
         for data in memory_batch:
-            state_batch.append(data.state)
+            cur_observations_batch.append(data.state[0])
+            cur_additional_states_batch.append(data.state[1])
             action_batch.append(data.action)
-            next_state_batch.append(data.next_state)
+            next_observations_batch.append(data.next_state[0])
+            next_additional_states_batch.append(data.next_state[1])
             reward_batch.append(data.reward)
             done_batch.append(data.done)
         # Transform data
-        state_batch = torch.cat(state_batch).to(self._device)
+        cur_observations_batch = torch.cat(cur_observations_batch).to(self._device)
+        cur_additional_states_batch = torch.cat(cur_additional_states_batch).to(self._device)
         action_batch = torch.cat(action_batch).unsqueeze(1).long().to(self._device)
-        next_state_batch = torch.cat(next_state_batch).to(self._device)
+        next_observations_batch = torch.cat(next_observations_batch).to(self._device)
+        next_additional_states_batch = torch.cat(next_additional_states_batch).to(self._device)
         reward_batch = torch.Tensor(reward_batch).unsqueeze(1).to(self._device)
         done_batch = torch.Tensor(done_batch).unsqueeze(1).to(self._device)
 
         # Forward calculate
-        output = self._policy_net.forward(state_batch.to(self._device)).gather(1, action_batch)
+        output = self._policy_net.forward(cur_observations_batch, cur_additional_states_batch).gather(1, action_batch)
         # Calculate policy net predict action for the next state
-        next_state_action_predict_batch = self._policy_net.forward(next_state_batch.to(self._device)).max(1)[1].unsqueeze(1)
+        next_state_action_predict_batch = self._policy_net.forward(next_observations_batch, next_additional_states_batch).max(1)[1].unsqueeze(1)
         # Calculate predict action corresponding Q by target net
-        target_q = self._target_net.forward(next_state_batch.to(self._device)).gather(1, next_state_action_predict_batch)
+        target_q = self._target_net.forward(next_observations_batch, next_additional_states_batch).gather(1, next_state_action_predict_batch)
         # Calculate ground truth
         # In the premise that the MDP process has a infinite length
         ground_truth = reward_batch + (1 - done_batch) * self._gamma * target_q
@@ -192,8 +198,14 @@ class DDQNTrainer:
                     print('Start calculation epoch: {}'.format(self._calculation_done))
                     self._calculation_done += 1
 
+                    # Calculate observations sequence and additional states for the current state
+                    states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
+                    _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
+                    cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
+                    cur_additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+
                     # Generate behavior
-                    action = self.selectAction(current_state_array)
+                    action = self.selectAction(cur_observations, cur_additional_states)
 
                     # Execute selected action
                     # Next state include two parts: ego vehicle state and surround vehicles states
@@ -201,23 +213,20 @@ class DDQNTrainer:
                     # The abscissa of ego vehicle is maintained with 30.0 (or other specific values)
                     reward, next_state, done, _, _, _ = env.runOnce(action)
 
-                    # Calculate observations sequence and additional states for the current state
-                    states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
-                    _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
-                    cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
-                    cur_additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
-
                     # Calculate observations sequence and additional states for the next state
-                    
-
-                    
+                    next_ego_vehicle, next_surround_vehicles = next_state[0], next_state[1]
+                    states_simulator.loadCurrentState(lane_info_with_speed, next_ego_vehicle, next_surround_vehicles)
+                    _, next_sur_vehs_states_t_order = states_simulator.runOnce()
+                    next_observations = image_generator.generateMultipleImages(next_sur_vehs_states_t_order)
+                    next_additional_states = np.array([next_ego_vehicle.position_.x_, next_ego_vehicle.position_.y_, next_ego_vehicle.position_.theta_, next_ego_vehicle.velocity_, next_ego_vehicle.acceleration_, next_ego_vehicle.curvature_, next_ego_vehicle.steer_, lane_speed_limit])
 
                     # Store information to memory buffer
-                    self._memory_replay.update(Transition(torch.from_numpy(current_state_array).unsqueeze(0).to(torch.float32).to(self._device), action, torch.from_numpy(next_state_array).unsqueeze(0).to(torch.float32).to(self._device), reward, done))
+                    self._memory_replay.update((Transition(torch.from_numpy(cur_observations).to(torch.float32).to(self._device), torch.from_numpy(cur_additional_states).to(torch.float32).to(self._device)), action, (torch.from_numpy(next_observations).to(torch.float32).to(self._device), torch.from_numpy(next_additional_states).to(torch.float32).to(self._device)), reward, done))
 
                     # Update environment and current state
-                    current_state_array = next_state_array
-                    env.load(current_state_array)
+                    ego_vehicle, surround_vehicles = next_ego_vehicle, next_surround_vehicles
+                    env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
+                    
                     # Sum reward
                     total_reward += reward
 

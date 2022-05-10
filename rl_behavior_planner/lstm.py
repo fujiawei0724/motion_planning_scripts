@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-05 21:06:19
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-10 10:56:14
+LastEditTime: 2022-05-10 17:56:09
 Description: network structure
 '''
 
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
     # Test batch data input
     observed_scene_seq_batch, additional_state_batch = [], []
-    for _ in range(128):
+    for _ in range(1):
         observed_scene_seq_batch.append(observed_scene_seq)
         additional_state_batch.append(additional_state)
     observed_scene_seq_batch = np.array(observed_scene_seq_batch)
