@@ -16,9 +16,9 @@ import logging
 import torch
 from tensorboardX import SummaryWriter
 from scipy.integrate import odeint
-from Double_DQN_net import DQN
-from DDPGTrainer import Actor, Critic
-from PPOTrainer import ActorCritic
+from ddqnNet import DQN
+from ddpgTrainer import Actor, Critic
+from ppoTrainer import ActorCritic
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
 
