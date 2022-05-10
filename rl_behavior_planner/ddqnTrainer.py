@@ -24,8 +24,6 @@ from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
 
-torch.backends.cudnn.enabled = False
-
 # Data in memory buffer
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
 
@@ -63,6 +61,7 @@ class DDQNTrainer:
         # self._policy_net.apply(self._policy_net.initWeights)
         self._target_net.load_state_dict(self._policy_net.state_dict())
         self._target_net.eval()
+        self._target_net.lstm.train()
 
         # Define optimizer
         self._optimizer = torch.optim.Adam(self._policy_net.parameters(), lr=0.0000625, eps=1.5e-4)
@@ -266,7 +265,7 @@ class DDQNTrainer:
                     if self._steps_done % self._target_update == 0:
                         self._target_net.load_state_dict(self._policy_net.state_dict())
                         print('Update target net in {} round'.format(self._steps_done))
-                        
+
                     # Evaluate model
                     if self._steps_done % self._evaluation_frequency == 0:
                         evaluate_reward = self.evaluate()
