@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 20:58:24
+LastEditTime: 2022-05-10 10:51:20
 Description: Generate the image to represent state.
 '''
 
@@ -62,6 +62,15 @@ class ImageGenerator:
         if not drawing:
             canvas = canvas.transpose(2, 0, 1)
         return canvas
+    
+    '''
+    description: generate multiple images.
+    '''    
+    def generateMultipleImages(self, surround_vehicles_info_seq_t_order):
+        multi_images = []
+        for _, sur_vehicles_info in surround_vehicles_info_seq_t_order.item():
+            multi_images.append(self.generateSingleImage(sur_vehicles_info))
+        return np.array(multi_images)
 
     '''
     description: calculate the information for drawing rotated rectangles

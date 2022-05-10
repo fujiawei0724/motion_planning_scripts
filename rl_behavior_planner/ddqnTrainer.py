@@ -148,6 +148,9 @@ class DDQNTrainer:
         # Initialize states simulator to create previous observations
         states_simulator = StatesSimulator()
 
+        # Initialize environment model
+        env = Environment()
+
         # Environment information reset iteration
         for env_reset_episode in range(0, self._max_environment_reset_episode):
             # Construct training environment
@@ -158,7 +161,6 @@ class DDQNTrainer:
             lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
             lane_speed_limit = random.uniform(10.0, 25.0)
             lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit]
-            env = Environment()
 
             # Initialize image generator
             image_generator = ImageGenerator(lane_info)
@@ -175,12 +177,12 @@ class DDQNTrainer:
                     print('Initial situation error, reset vehicles information!!!')
                     continue
 
-                # Transform to state array
-                # TODO: delete state array, make the input of the environment paralleled with the generator
-                current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
+                # # Transform to state array
+                # current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
 
                 # Load all information to env
-                env.load(current_state_array)
+                # env.load(current_state_array)
+                env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
 
                 # Record reward
                 total_reward = 0
@@ -194,14 +196,19 @@ class DDQNTrainer:
                     action = self.selectAction(current_state_array)
 
                     # Execute selected action
-                    reward, next_state_array, done, _, _, _ = env.runOnce(action)
+                    # Next state include two parts: ego vehicle state and surround vehicles states
+                    # Surround vehicles' position information has been transformed based on ego vehicle's postion
+                    # The abscissa of ego vehicle is maintained with 30.0 (or other specific values)
+                    reward, next_state, done, _, _, _ = env.runOnce(action)
 
-                    # Transform the format of the data
-                    # TODO: unify the interface, delete tedious transformation
-                    _, cur_ego_vehicle, cur_surround_vehicles = StateInterface.netDataAllToWorld(current_state_array)
-                    _, next_ego_vehicle, next_surround_vehicles =  StateInterface.netDataAllToWorld(next_state_array)
+                    # Calculate observations sequence and additional states for the current state
+                    states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
+                    _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
+                    cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
+                    cur_additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
-                    # Calculate observations sequence 
+                    # Calculate observations sequence and additional states for the next state
+                    
 
                     
 

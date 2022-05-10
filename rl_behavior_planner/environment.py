@@ -174,6 +174,21 @@ class Environment:
         ego_vehicle_state_array = all_state_array[5:14]
         sur_vehicles_states_array = all_state_array[14:].reshape(10, 8)
         self.loadVehicleInfo(ego_vehicle_state_array, sur_vehicles_states_array)
+    
+    def load(self, lane_info_with_speed, ego_vehicle, surround_vehicles):
+        # Check data
+        self.lane_info_ = None
+        self.lane_server_ = None
+        self.ego_vehicle_ = None
+        self.surround_vehicle_ = None
+
+        # Load lane info
+        left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit = lane_info_with_speed[0], lane_info_with_speed[1], lane_info_with_speed[2], lane_info_with_speed[3], lane_info_with_speed[4]
+        self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit)
+
+
+
+
 
     def loadLaneInfo(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit):
         # Store next state for next state calculation
@@ -224,10 +239,22 @@ class Environment:
         self.surround_vehicle_ = dict()
         for index, single_sur_info in enumerate(sur_info):
             if single_sur_info[0] == 1:
-                self.surround_vehicle_[index + 1] = Vehicle(index + 1, PathPoint(single_sur_info[1], single_sur_info[2],
-                                                                                 single_sur_info[3]),
-                                                            single_sur_info[4], single_sur_info[5], single_sur_info[6],
+                self.surround_vehicle_[index + 1] = Vehicle(index + 1, 
+                                                            PathPoint(single_sur_info[1], single_sur_info[2],
+                                                            single_sur_info[3]),
+                                                            single_sur_info[4], 
+                                                            single_sur_info[5], 
+                                                            single_sur_info[6],
                                                             single_sur_info[7], 0.0, 0.0, 0.0)
+    
+    # Load vehicles information
+    def loadVehicles(self, ego_veh, sur_vehs):
+        # Refresh
+        self.ego_vehicle_ = None
+        self.surround_vehicle_ = None
+
+        self.ego_vehicle_ = ego_veh
+        self.surround_vehicle_ = sur_vehs
 
     # Load behavior sequence
     # behavior sequence is a array has 11 elements, [0] denotes the longitudinal behavior, [1:11] denotes the corresponding latitudinal behavior in each time stamps respectively
@@ -285,7 +312,19 @@ class Environment:
             error_situation = True
 
         # ~Stage V: calculate next state
-        next_state = StateInterface.calculateNextState(self.lane_info_, ego_traj, surround_trajs)
+        # next_state = StateInterface.calculateNextState(self.lane_info_, ego_traj, surround_trajs)
+        next_ego_vehicle_state = ego_traj.vehicle_states_[-1]
+        next_sur_vehicles_states = {}
+        for sur_veh_id, sur_veh_traj in surround_trajs.items():
+            next_sur_vehicles_states[sur_veh_id] = sur_veh_traj.vehicle_states_[-1]
+        
+        # Keeping the position of the ego vehicle
+        # Its abscissa should be 30.0 (or other values)
+        gap = next_ego_vehicle_state.position_.x_ - 30.0
+        for next_sur_veh_state in next_sur_vehicles_states.values():
+            next_sur_veh_state.position_.x_ -= gap
+
+        next_state = (next_ego_vehicle_state, next_sur_vehicles_states)
 
         # ~Stage VI: visualization
         if with_visualization:

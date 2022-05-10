@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-05 21:06:19
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 21:58:32
+LastEditTime: 2022-05-10 10:56:14
 Description: network structure
 '''
 
@@ -39,7 +39,7 @@ class BackboneNetwork(nn.Module):
             ) for _ in range(input_seq_length)
         ])
         self.fc1 = nn.Sequential(
-            nn.Linear(6 + hidden_dim, 512),
+            nn.Linear(8 + hidden_dim, 512),
             nn.Dropout(0.5),
             nn.ReLU(True),
         )
@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     # Produce ego vehicle states and lane speed limit
     ego_vehicle = EgoInfoGenerator.generateOnce()
-    additional_state = np.array([ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+    additional_state = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
     # Test data input
     device = torch.device('cuda:0')

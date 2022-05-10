@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-07 18:09:21
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-09 22:18:03
+LastEditTime: 2022-05-10 11:11:32
 Description: simulate the states sequence from the current observed state.
 '''
 
@@ -25,6 +25,8 @@ class StatesSimulator:
     def __init__(self, seq_length=10, t_intertval=0.2):
         self.seq_length_ = seq_length
         self.t_intertval_ = t_intertval
+        # Lane information is useless currently
+        # TODO: add detailed simulation process, which considers the lane information
         self.lane_info_ = None
         self.ego_vehicle_ = None
         self.surround_vehicles_ = None
@@ -101,7 +103,7 @@ class StatesSimulator:
             gap = ego_veh_states_seq[t].position_.x_ - 30.0
             ego_veh_states_seq[t].position_.x_ = 30.0
             for sur_info in sur_veh_states_seqs.values():
-                sur_info[t].position_.x_ += gap
+                sur_info[t].position_.x_ -= gap
         
         if not t_order:
             return ego_veh_states_seq, sur_veh_states_seqs
