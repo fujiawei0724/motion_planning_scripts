@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-10 10:51:20
+LastEditTime: 2022-05-10 18:50:20
 Description: Generate the image to represent state.
 '''
 
@@ -68,7 +68,7 @@ class ImageGenerator:
     '''    
     def generateMultipleImages(self, surround_vehicles_info_seq_t_order):
         multi_images = []
-        for _, sur_vehicles_info in surround_vehicles_info_seq_t_order.item():
+        for _, sur_vehicles_info in surround_vehicles_info_seq_t_order.items():
             multi_images.append(self.generateSingleImage(sur_vehicles_info))
         return np.array(multi_images)
 

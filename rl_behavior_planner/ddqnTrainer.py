@@ -24,6 +24,8 @@ from memory import MemoryReplay
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
 
+torch.backends.cudnn.enabled = False
+
 # Data in memory buffer
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
 
@@ -43,7 +45,7 @@ class DDQNTrainer:
         self._eps_end = 0.1
         self._eps_decay = 1000000
         self._gamma = 0.5
-        self._batch_size = 64
+        self._batch_size = 128
         self._buffer_full = 10000
         self._buffer_size = 50000
         self._target_update = 10000
@@ -56,9 +58,8 @@ class DDQNTrainer:
         self._max_vehicle_info_reset_num = 100
 
         # Define network parameters
-        state_length = 94
-        self._policy_net = DQN_resi(state_length, 231).to(self._device)
-        self._target_net = DQN_resi(state_length, 231).to(self._device)
+        self._policy_net = BackboneNetwork(10, 512, 2, 231).to(self._device)
+        self._target_net = BackboneNetwork(10, 512, 2, 231).to(self._device)
         # self._policy_net.apply(self._policy_net.initWeights)
         self._target_net.load_state_dict(self._policy_net.state_dict())
         self._target_net.eval()
@@ -71,6 +72,7 @@ class DDQNTrainer:
 
         # Record optimization iteration number
         self._steps_done = 0
+
         # Record calculation iteration number
         self._calculation_done = 0
 
@@ -108,18 +110,23 @@ class DDQNTrainer:
 
     # Optimization for net
     def optimizeProcess(self):
+        # Training mode
+        self._policy_net.train()
+
         # Load data from memory
         memory_batch = self._memory_replay.getBatch(self._batch_size)
+
         # Split data
         cur_observations_batch, cur_additional_states_batch, action_batch, next_observations_batch, next_additional_states_batch, reward_batch, done_batch = [], [], [], [], [], [], []
         for data in memory_batch:
-            cur_observations_batch.append(data.state[0])
-            cur_additional_states_batch.append(data.state[1])
+            cur_observations_batch.append(data.state[0].unsqueeze(0))
+            cur_additional_states_batch.append(data.state[1].unsqueeze(0))
             action_batch.append(data.action)
-            next_observations_batch.append(data.next_state[0])
-            next_additional_states_batch.append(data.next_state[1])
+            next_observations_batch.append(data.next_state[0].unsqueeze(0))
+            next_additional_states_batch.append(data.next_state[1].unsqueeze(0))
             reward_batch.append(data.reward)
             done_batch.append(data.done)
+        
         # Transform data
         cur_observations_batch = torch.cat(cur_observations_batch).to(self._device)
         cur_additional_states_batch = torch.cat(cur_additional_states_batch).to(self._device)
@@ -129,18 +136,33 @@ class DDQNTrainer:
         reward_batch = torch.Tensor(reward_batch).unsqueeze(1).to(self._device)
         done_batch = torch.Tensor(done_batch).unsqueeze(1).to(self._device)
 
+        # # DEBUG
+        # print('Cur observations size: {}'.format(cur_observations_batch.size()))
+        # print('Cur additional states size: {}'.format(cur_additional_states_batch.size()))
+        # print('Action batch size: {}'.format(action_batch.size()))
+        # print('Next observations size: {}'.format(next_observations_batch.size()))
+        # print('Next additional states batch size: {}'.format(next_additional_states_batch.size()))
+        # print('Reward batch size: {}'.format(reward_batch.size()))
+        # print('Done batch size: {}'.format(done_batch))
+        # # END DEBUG
+
         # Forward calculate
         output = self._policy_net.forward(cur_observations_batch, cur_additional_states_batch).gather(1, action_batch)
+
         # Calculate policy net predict action for the next state
         next_state_action_predict_batch = self._policy_net.forward(next_observations_batch, next_additional_states_batch).max(1)[1].unsqueeze(1)
+
         # Calculate predict action corresponding Q by target net
         target_q = self._target_net.forward(next_observations_batch, next_additional_states_batch).gather(1, next_state_action_predict_batch)
+
         # Calculate ground truth
         # In the premise that the MDP process has a infinite length
         ground_truth = reward_batch + (1 - done_batch) * self._gamma * target_q
+
         # Loss calculation
         loss = torch.nn.SmoothL1Loss()(output, ground_truth)
         self._summary_writer.add_scalar('loss', loss, self._steps_done)
+
         # Optimization
         self._optimizer.zero_grad()
         loss.backward()
@@ -221,7 +243,7 @@ class DDQNTrainer:
                     next_additional_states = np.array([next_ego_vehicle.position_.x_, next_ego_vehicle.position_.y_, next_ego_vehicle.position_.theta_, next_ego_vehicle.velocity_, next_ego_vehicle.acceleration_, next_ego_vehicle.curvature_, next_ego_vehicle.steer_, lane_speed_limit])
 
                     # Store information to memory buffer
-                    self._memory_replay.update((Transition(torch.from_numpy(cur_observations).to(torch.float32).to(self._device), torch.from_numpy(cur_additional_states).to(torch.float32).to(self._device)), action, (torch.from_numpy(next_observations).to(torch.float32).to(self._device), torch.from_numpy(next_additional_states).to(torch.float32).to(self._device)), reward, done))
+                    self._memory_replay.update(Transition((torch.from_numpy(cur_observations).to(torch.float32).to(self._device), torch.from_numpy(cur_additional_states).to(torch.float32).to(self._device)), action, (torch.from_numpy(next_observations).to(torch.float32).to(self._device), torch.from_numpy(next_additional_states).to(torch.float32).to(self._device)), reward, done))
 
                     # Update environment and current state
                     ego_vehicle, surround_vehicles = next_ego_vehicle, next_surround_vehicles
@@ -239,10 +261,12 @@ class DDQNTrainer:
                     if self._steps_done % self._optimize_frequency == 0:
                         print('Optimization No. {} round'.format(self._steps_done))
                         self.optimizeProcess()
+
                     # Update target network parameters
                     if self._steps_done % self._target_update == 0:
                         self._target_net.load_state_dict(self._policy_net.state_dict())
                         print('Update target net in {} round'.format(self._steps_done))
+                        
                     # Evaluate model
                     if self._steps_done % self._evaluation_frequency == 0:
                         evaluate_reward = self.evaluate()
@@ -259,6 +283,9 @@ class DDQNTrainer:
 
     # Evaluate training
     def evaluate(self, episodes=15):
+        # Evaluation mode
+        self._policy_net.eval()
+
         # Initialize data
         rewards = []
         env = Environment()

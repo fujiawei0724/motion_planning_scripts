@@ -186,6 +186,9 @@ class Environment:
         left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit = lane_info_with_speed[0], lane_info_with_speed[1], lane_info_with_speed[2], lane_info_with_speed[3], lane_info_with_speed[4]
         self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit)
 
+        # Load vehicle information
+        self.ego_vehicle_ = ego_vehicle
+        self.surround_vehicle_ = surround_vehicles
 
 
 
@@ -246,15 +249,6 @@ class Environment:
                                                             single_sur_info[5], 
                                                             single_sur_info[6],
                                                             single_sur_info[7], 0.0, 0.0, 0.0)
-    
-    # Load vehicles information
-    def loadVehicles(self, ego_veh, sur_vehs):
-        # Refresh
-        self.ego_vehicle_ = None
-        self.surround_vehicle_ = None
-
-        self.ego_vehicle_ = ego_veh
-        self.surround_vehicle_ = sur_vehs
 
     # Load behavior sequence
     # behavior sequence is a array has 11 elements, [0] denotes the longitudinal behavior, [1:11] denotes the corresponding latitudinal behavior in each time stamps respectively
