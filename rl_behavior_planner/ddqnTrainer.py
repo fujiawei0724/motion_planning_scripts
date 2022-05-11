@@ -242,7 +242,7 @@ class DDQNTrainer:
                     next_additional_states = np.array([next_ego_vehicle.position_.x_, next_ego_vehicle.position_.y_, next_ego_vehicle.position_.theta_, next_ego_vehicle.velocity_, next_ego_vehicle.acceleration_, next_ego_vehicle.curvature_, next_ego_vehicle.steer_, lane_speed_limit])
 
                     # Store information to memory buffer
-                    self._memory_replay.update(Transition((torch.from_numpy(cur_observations).to(torch.float32).to(self._device), torch.from_numpy(cur_additional_states).to(torch.float32).to(self._device)), action, (torch.from_numpy(next_observations).to(torch.float32).to(self._device), torch.from_numpy(next_additional_states).to(torch.float32).to(self._device)), reward, done))
+                    self._memory_replay.update(Transition((torch.from_numpy(cur_observations).to(torch.float32), torch.from_numpy(cur_additional_states).to(torch.float32)), action, (torch.from_numpy(next_observations).to(torch.float32), torch.from_numpy(next_additional_states).to(torch.float32)), reward, done))
 
                     # Update environment and current state
                     ego_vehicle, surround_vehicles = next_ego_vehicle, next_surround_vehicles
