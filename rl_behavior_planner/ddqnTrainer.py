@@ -287,39 +287,57 @@ class DDQNTrainer:
 
         # Initialize data
         rewards = []
+        states_simulator = StatesSimulator()
         env = Environment()
 
         for episode in range(0, episodes):
-            # Load environment data randomly
+            # Construct training environment
             left_lane_exist = random.randint(0, 1)
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
+            lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
             lane_speed_limit = random.uniform(10.0, 25.0)
+            lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit]
+
+            # Initialize image generator
+            image_generator = ImageGenerator(lane_info)
+
             # Construct ego vehicle and surround vehicles randomly
             ego_vehicle = EgoInfoGenerator.generateOnce()
             surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
             surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+
             # Judge whether available
             if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
                 print('Initial situation error, reset vehicles information!!!')
-                break
-            # Transform to state array
-            current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
-            # Load information to environment
-            env.load(current_state_array)
+                continue
+
+            # Load all information to env
+            # env.load(current_state_array)
+            env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
 
             # Record reward
-            total_reward = 0.0
+            total_reward = 0
 
             for _ in range(0, self._max_iteration_num):
+                # Calculate observations sequence and additional states for the current state
+                states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
+                _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
+                cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
+                cur_additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+
                 # Generate behavior
-                action = self.selectAction(current_state_array, False)
+                action = self.selectAction(cur_observations, cur_additional_states)
+
                 # Execute selected action
-                reward, next_state_array, done, _, _, _ = env.runOnce(action)
+                reward, next_state, done, _, _, _ = env.runOnce(action)                
+                
                 # Update environment and current state
-                current_state_array = next_state_array
-                env.load(current_state_array)
+                next_ego_vehicle, next_surround_vehicles = next_state[0], next_state[1]
+                ego_vehicle, surround_vehicles = next_ego_vehicle, next_surround_vehicles
+                env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
+                
                 # Sum reward
                 total_reward += reward
 
