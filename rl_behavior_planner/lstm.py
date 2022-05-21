@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-05 21:06:19
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-10 17:56:09
+LastEditTime: 2022-05-21 17:31:05
 Description: network structure
 '''
 
@@ -39,7 +39,8 @@ class BackboneNetwork(nn.Module):
             ) for _ in range(input_seq_length)
         ])
         self.fc1 = nn.Sequential(
-            nn.Linear(8 + hidden_dim, 512),
+            # The additional number means the additional states length
+            nn.Linear(7 + hidden_dim, 512),
             nn.Dropout(0.5),
             nn.ReLU(True),
         )

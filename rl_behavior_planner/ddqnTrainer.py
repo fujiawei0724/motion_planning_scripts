@@ -27,6 +27,10 @@ from utils import *
 # Data in memory buffer
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
 
+# Normalization coefficients
+SPEED_NORM = 25.0
+ACC_NORM = 3.0
+
 # Behavior planner
 class DDQNTrainer:
     def __init__(self):
@@ -223,7 +227,7 @@ class DDQNTrainer:
                     states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
                     _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
                     cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
-                    cur_additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+                    cur_additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
                     # Generate behavior
                     action = self.selectAction(cur_observations, cur_additional_states)
@@ -239,7 +243,7 @@ class DDQNTrainer:
                     states_simulator.loadCurrentState(lane_info_with_speed, next_ego_vehicle, next_surround_vehicles)
                     _, next_sur_vehs_states_t_order = states_simulator.runOnce()
                     next_observations = image_generator.generateMultipleImages(next_sur_vehs_states_t_order)
-                    next_additional_states = np.array([next_ego_vehicle.position_.x_, next_ego_vehicle.position_.y_, next_ego_vehicle.position_.theta_, next_ego_vehicle.velocity_, next_ego_vehicle.acceleration_, next_ego_vehicle.curvature_, next_ego_vehicle.steer_, lane_speed_limit])
+                    next_additional_states = np.array([next_ego_vehicle.position_.y_, next_ego_vehicle.position_.theta_, next_ego_vehicle.velocity_ / SPEED_NORM, next_ego_vehicle.acceleration_ / ACC_NORM, next_ego_vehicle.curvature_, next_ego_vehicle.steer_, lane_speed_limit])
 
                     # Store information to memory buffer
                     self._memory_replay.update(Transition((torch.from_numpy(cur_observations).to(torch.float32), torch.from_numpy(cur_additional_states).to(torch.float32)), action, (torch.from_numpy(next_observations).to(torch.float32), torch.from_numpy(next_additional_states).to(torch.float32)), reward, done))
@@ -325,7 +329,7 @@ class DDQNTrainer:
                 states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
                 _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
                 cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
-                cur_additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+                cur_additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
                 # Generate behavior
                 action = self.selectAction(cur_observations, cur_additional_states)

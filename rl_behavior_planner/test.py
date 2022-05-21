@@ -25,6 +25,9 @@ from ppoTrainer import ActorCritic
 from environment import Environment, StateInterface, ActionInterface
 from utils import *
 
+SPEED_NORM = 25.0
+ACC_NORM = 3.0
+
 class Tester:
 
     @staticmethod
@@ -81,7 +84,7 @@ class Tester:
             states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
             _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
             observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
-            additional_states = np.array([ego_vehicle.position_.x_, ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_, ego_vehicle.acceleration_, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+            additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
             # Transform formation
             observations = torch.from_numpy(observations).to(torch.float32).unsqueeze(0)
