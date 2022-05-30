@@ -8,7 +8,10 @@
 The description of environment.
 """
 
+import sys
+sys.path.append('..')
 import os
+os.chdir(os.path.dirname(__file__))
 import logging
 import random
 import h5py
@@ -17,7 +20,7 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
-from utils import *
+from rl_behavior_planner.utils import *
 
 
 # Transform the state between world and neural network data
