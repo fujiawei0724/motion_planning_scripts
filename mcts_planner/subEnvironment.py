@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-30 16:54:57
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-31 22:43:14
+LastEditTime: 2022-06-01 12:48:49
 Description: Monte Carlo Tree Search algorithm.
 '''
 
@@ -15,10 +15,12 @@ from rl_behavior_planner.environment import Environment
 
 class SubForwardExtender(ForwardExtender):
 
+    def __init__(self, lane_server, dt):
+        self.lane_server_ = copy.deepcopy(lane_server)
+        self.dt_ = dt
+        
     # Forward one step
     def multiAgentForwardOnce(self, vehicle_intention, vehicles, lane_speed_limit):
-        
-        ego_vehicle_id = 0
 
         # Get the initial velocities of all vehicles
         initial_velocities = dict()
@@ -38,7 +40,7 @@ class SubForwardExtender(ForwardExtender):
             # Determine initial vehicles information
             desired_velocity = initial_velocities[veh_id]
             # init_time_stamp = veh.vehicle_.time_stamp_
-            if veh_id == ego_vehicle_id:
+            if veh_id == 0:
                 desired_velocity += vehicle_intention.velocity_compensation_
                 desired_velocity = np.clip(desired_velocity, 0.0, lane_speed_limit)
 
@@ -48,6 +50,11 @@ class SubForwardExtender(ForwardExtender):
             states_cache[desired_veh_state.id_] = desired_veh_state
         
         # Parse data
+        next_ego_vehicle = states_cache[0]
+        states_cache.pop(0)
+        next_sur_vehicles = states_cache
+        
+        return next_ego_vehicle, next_sur_vehicles
 
 
 class SubEnvironment(Environment):
@@ -64,7 +71,7 @@ class SubEnvironment(Environment):
 
 
 if __name__ == '__main__':
-    sub_environment = SubEnvironment()
+    pass
     
 
 

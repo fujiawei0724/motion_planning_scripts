@@ -791,7 +791,7 @@ class IdealSteerModel:
 # Forward simulation
 class ForwardExtender:
 
-    def __init__(self, lane_server: LaneServer, dt, predict_time_span):
+    def __init__(self, lane_server, dt, predict_time_span):
         # Information cache
         self.lane_server_ = copy.deepcopy(lane_server)
         self.dt_ = dt
