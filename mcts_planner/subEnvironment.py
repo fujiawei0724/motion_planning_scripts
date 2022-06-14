@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-30 16:54:57
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-06 18:43:09
+LastEditTime: 2022-06-14 19:55:11
 Description: Components for MCTS.
 '''
 
@@ -12,6 +12,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from rl_behavior_planner.utils import *
 from rl_behavior_planner.environment import Environment
+
+# State at a specific timestamp
+class State:
+    def __init__(self, ego_vehicle, surround_vehicles, time_stamp, error_situation=False):
+        self.ego_vehicle_ = ego_vehicle
+        self.surround_vehicles_ = surround_vehicles
+        self.t_ = time_stamp
+        self.error_situation_ = error_situation
+    
+    def terminal(self):
+        if self.t_ == 4.0:
+            return True
+        if self.error_situation_:
+            return True
+        return False
 
 
 class SubForwardExtender(ForwardExtender):
@@ -58,17 +73,13 @@ class SubForwardExtender(ForwardExtender):
         return next_ego_vehicle, next_sur_vehicles
 
 
-# Evaluate single state generate from subenvironment
-# TODO: if the reward in mcts could only be gotten from the terminal of each episode, this evaluator will be useless
-class StateEvaluator:
-    pass
-
-
 class SubEnvironment(Environment):
 
-    def runOnce(self):
-        pass
+    # Load information from state
+    def load(self, lane_info_with_speed, state):
+        self.load(lane_info_with_speed, state.ego_vehicle_, state.surround_vehicles_)
     
+    # Simulate one step due to IDM
     def simulateSingleStep(self, vehicle_intention, ax=None):
         # Initialize state cache
         # TODO: check this logic, try to avoid the use of copy
@@ -83,10 +94,12 @@ class SubEnvironment(Environment):
 
         # Calculate next states for each vehicle
         # TODO: check this parameters about prediction time scan
+        # TODO: check the ordinate value of ego vehile's position
         sub_forward_extender = SubForwardExtender(self.lane_server_, 0.4)
         n_ego_vehicle, n_sur_vehicles = sub_forward_extender.multiAgentForwardOnce(vehicle_intention, 
-                                                                      vehicles, 
-                                                                      self.lane_speed_limit_)
+                                                                                   vehicles, 
+                                                                                   self.lane_speed_limit_)
+                                                        
 
         # # DEBUG
         # self.ego_vehicle_ = n_ego_vehicle
@@ -95,7 +108,7 @@ class SubEnvironment(Environment):
         #     self.visualization(ax)
         # # END DEBUG
 
-        return n_ego_vehicle, n_sur_vehicles
+        return State(n_ego_vehicle, n_sur_vehicles)
         
 
 
