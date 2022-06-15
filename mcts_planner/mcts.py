@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-06-07 11:01:56
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-14 19:58:13
+LastEditTime: 2022-06-15 22:30:16
 Description: mcts algorithm.
 '''
 
@@ -10,7 +10,7 @@ import sys
 sys.path.append('..')
 import numpy as np
 from collections import defaultdict
-from subEnvironment import SubEnvironment
+from subEnvironment import SubEnvironment, State
 from rl_behavior_planner.utils import *
 
 VEHICLE_INTENTION_SET = [VehicleIntention(lat_beh, lon_vel) 
@@ -21,12 +21,11 @@ VEHICLE_INTENTION_SET = [VehicleIntention(lat_beh, lon_vel)
 # A group of states in time order
 class MacroState:
     moves_num = 11 * 3
-    def __init__(self, states, lane_change_num, lane_info_with_speed):
+    def __init__(self, states=None, lane_change_num=None, lane_info_with_speed=None):
         self.states_ = states
         self.lane_change_num_ = lane_change_num
-        self.lane_speed_limit_ = lane_info_with_speed[-1]
-        self.lane_info_ = lane_info_with_speed[:-1]
-    
+        self.lane_info_with_speed_ = lane_info_with_speed
+
     def reward(self):
         # TODO: add consideration of nonexistent lanes
         cost, is_collision, _, _, _ = MctsPolicyEvaluator.praise(self)
@@ -40,8 +39,34 @@ class MacroState:
         return False
 
     # Generate random next state to construct the default policy
-    def next_state(self):
-        pass
+    def next_state(self, env, cur_intention):
+        # Load data to environment and generate next state
+        env.load(self.lane_info_with_speed_, self.states_[-1])
+        next_state = env.simulateSingleStep(cur_intention)
+
+        return next_state
+    
+    # Generate next macro state
+    def next_macro_state(self, env):
+        # Select intention randomly
+        cur_intention = random.choice(VEHICLE_INTENTION_SET)
+        
+        # Calculate next state
+        next_state = self.next_state(env, cur_intention)
+
+        # Integrate ego macro state and the generated next state
+        # TODO: check the logic about the copy of the current object (try to avoid the use of 'copy')
+        next_macro_state = MacroState()
+        next_macro_state.states_ = self.states_
+        next_macro_state.states_.append(next_state)
+        next_macro_state.lane_change_num_ = self.lane_change_num_
+        if cur_intention.lat_beh_ == LateralBehavior.LaneChangeLeft or cur_intention.lat_beh_ == LateralBehavior.LaneChangeRight:
+            next_macro_state.lane_change_num_ += 1
+        next_macro_state.lane_info_with_speed_ = self.lane_info_with_speed_
+
+        return next_macro_state
+
+        
 
 # Node in the search tree
 class Node:
@@ -104,6 +129,7 @@ class TreePolicyTrainer:
     def __init__(self, round_limit, time_limit, scalar):
         self.round_limit_ = round_limit
         self.time_limit_ = time_limit
+        self.scalar_ = scalar
     
     '''
     description: train the tree policy
@@ -137,16 +163,32 @@ class TreePolicyTrainer:
         pass
 
     def best_child(self, node):
-        pass
+        best_score = 0.0
+        best_children = []
+        for c in node.children_:
+            exploit = c.reward_ / c.visit_num_
+            explore = np.sqrt(2.0 * np.log(node.visit_num_) / float(c.visit_num_))
+            score = exploit + self.scalar_ * explore
+            if score == best_score:
+                best_children.append(c)
+            if score > best_score:
+                best_children = [c]
+                best_score = score
+        if len(best_children) == 0:
+            print('Fatal error!!!')
+        return random.choice(best_children)
 
-    def default_policy(self, states_sequence):
-        pass
+    def default_policy(self, macro_state, env):
+        while macro_state.terminal() == False:
+            macro_state = macro_state.next_macro_state(env)
+        return macro_state.reward()
 
     def backup(self, node, reward):
         while node != None:
             node.visit_num_ += 1
             node.reward_ += reward
             node = node.parent_
+        return 
         
     
 
