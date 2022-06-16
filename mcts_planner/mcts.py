@@ -2,12 +2,13 @@
 Author: fujiawei0724
 Date: 2022-06-07 11:01:56
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-15 22:30:16
+LastEditTime: 2022-06-16 21:24:52
 Description: mcts algorithm.
 '''
 
 import sys
 sys.path.append('..')
+import random
 import numpy as np
 from collections import defaultdict
 from subEnvironment import SubEnvironment, State
@@ -21,10 +22,13 @@ VEHICLE_INTENTION_SET = [VehicleIntention(lat_beh, lon_vel)
 # A group of states in time order
 class MacroState:
     moves_num = 11 * 3
-    def __init__(self, states=None, lane_change_num=None, lane_info_with_speed=None):
+    def __init__(self, states=None, lane_change_num=None, lane_info_with_speed=None, intention=None):
         self.states_ = states
         self.lane_change_num_ = lane_change_num
         self.lane_info_with_speed_ = lane_info_with_speed
+        
+        # Record behavior information
+        self.intention_ = intention 
 
     def reward(self):
         # TODO: add consideration of nonexistent lanes
@@ -34,14 +38,14 @@ class MacroState:
         return 1.0 / cost
     
     def terminal(self):
-        if self.states_[-1].ternimal():
+        if self.states_[-1].terminal():
             return True
         return False
 
     # Generate random next state to construct the default policy
     def next_state(self, env, cur_intention):
         # Load data to environment and generate next state
-        env.load(self.lane_info_with_speed_, self.states_[-1])
+        env.loadState(self.lane_info_with_speed_, self.states_[-1])
         next_state = env.simulateSingleStep(cur_intention)
 
         return next_state
@@ -60,6 +64,7 @@ class MacroState:
         next_macro_state.states_ = self.states_
         next_macro_state.states_.append(next_state)
         next_macro_state.lane_change_num_ = self.lane_change_num_
+        next_macro_state.intention_ = cur_intention
         if cur_intention.lat_beh_ == LateralBehavior.LaneChangeLeft or cur_intention.lat_beh_ == LateralBehavior.LaneChangeRight:
             next_macro_state.lane_change_num_ += 1
         next_macro_state.lane_info_with_speed_ = self.lane_info_with_speed_
@@ -70,15 +75,15 @@ class MacroState:
 
 # Node in the search tree
 class Node:
-    def __init__(self, state_sequence, parent=None):
+    def __init__(self, macro_state, parent=None):
         self.visit_num_ = 1
         self.reward_ = 0.0
-        self.state_sequence_ = state_sequence
+        self.macro_state_ = macro_state
         self.children_ = []
         self.parent_ = parent
     
-    def add_child(self, child_states_sequence, child_lane_change_num, child_lane_info_with_speed):
-        child = Node(MacroState(child_states_sequence, child_lane_change_num, child_lane_info_with_speed), self)
+    def add_child(self, child_macro_state):
+        child = Node(child_macro_state, self)
         self.children_.append(child)
     
     def update(self, reward):
@@ -87,9 +92,23 @@ class Node:
     
     def fully_expanded(self):
         # TODO: add domain knowledge here to limit the scale of the search tree
-        if len(self.children_) == self.state_sequence_.moves_num:
+        if len(self.children_) == self.macro_state_.moves_num:
             return True
         return False
+    
+    def best_policy(self):
+        best_score = -np.inf
+        best_children = []
+        for c in self.children_:
+            score = c.reward_ / c.visit_num_
+            if score == best_score:
+                best_children.append(c)
+            if score > best_score:
+                best_children = [c]
+                best_score = score
+        if len(best_children) == 0:
+            print('Fatal error!!!')
+        return random.choice(best_children)
     
 # Generate reward for the states sequence
 class MctsPolicyEvaluator(PolicyEvaluator):
@@ -136,34 +155,41 @@ class TreePolicyTrainer:
     param {root} root node of the search tree
     return {*}
     '''    
-    def train(self, root):
+    def train(self, root, env):
         for iter in range(self.round_limit_):
-            pass
+            front = self.tree_policy(root, env)
+            reward = self.default_policy(front.macro_state_, env)
+            self.backup(front, reward)
+        return root
     
     '''
     description: stretch a tree node
     param {node} start node, also the node manipulated 
     return {node} the ternimal node in the branch of the start node
     '''    
-    def tree_policy(self, node):
-        while node.state_sequence_.terminal() == False:
+    def tree_policy(self, node, env):
+        while node.macro_state_.terminal() == False:
             if len(node.children_) == 0:
-                # TODO: expand node 
-                pass
+                return self.expand(node, env)
             elif random.uniform(0, 1) < 0.5:
-                pass
+                node = self.best_child(node)
             else:
                 if node.fully_expanded() == False:
-                    pass
+                    return self.expand(node)
                 else:
-                    pass
+                    node = self.best_child(node)
         return node
     
-    def expand(self, node):
-        pass
+    def expand(self, node, env):
+        tried_children = [c.macro_state_ for c in node.children_]
+        next_macro_state = node.macro_state_.next_macro_state(env)
+        while next_macro_state in tried_children and next_macro_state.terminal() == False:
+            next_macro_state = node.macro_state_.next_macro_state(env)
+        node.add_child(next_macro_state)
+        return node.children_[-1]
 
     def best_child(self, node):
-        best_score = 0.0
+        best_score = -np.inf
         best_children = []
         for c in node.children_:
             exploit = c.reward_ / c.visit_num_
@@ -193,4 +219,31 @@ class TreePolicyTrainer:
     
 
 if __name__ == '__main__':
-    print(len(VEHICLE_INTENTION_SET))
+    # Load environment data randomly
+    random.seed(0)
+    left_lane_exist = random.randint(0, 1)
+    right_lane_exist = random.randint(0, 1)
+    center_left_distance = random.uniform(3.0, 4.5)
+    center_right_distance = random.uniform(3.0, 4.5)
+    lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
+    lane_speed_limit = random.uniform(10.0, 25.0)
+    lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit]
+
+    # Construct ego vehicle and surround vehicles randomly
+    ego_vehicle = EgoInfoGenerator.generateOnce()
+    surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+    surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+
+    # Construct environment
+    env = SubEnvironment()
+
+    # Construct trainer
+    scalar = 1.0 / (2.0 * np.sqrt(2.0))
+    mcts_trainer = TreePolicyTrainer(20, None, scalar)
+
+    # Initialize start node 
+    root = Node(MacroState([State(ego_vehicle, surround_vehicles, 0.0)], 0, lane_info_with_speed))
+    mcts_trainer.train(root, env)
+
+    
+    

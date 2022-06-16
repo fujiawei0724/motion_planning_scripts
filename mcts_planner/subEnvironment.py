@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-30 16:54:57
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-14 19:55:11
+LastEditTime: 2022-06-16 21:28:42
 Description: Components for MCTS.
 '''
 
@@ -75,8 +75,11 @@ class SubForwardExtender(ForwardExtender):
 
 class SubEnvironment(Environment):
 
+    def __init__(self):
+        super().__init__()
+
     # Load information from state
-    def load(self, lane_info_with_speed, state):
+    def loadState(self, lane_info_with_speed, state):
         self.load(lane_info_with_speed, state.ego_vehicle_, state.surround_vehicles_)
     
     # Simulate one step due to IDM
