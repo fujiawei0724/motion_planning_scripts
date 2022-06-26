@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-06-07 11:01:56
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-16 21:24:52
+LastEditTime: 2022-06-26 17:07:33
 Description: mcts algorithm.
 '''
 
@@ -61,10 +61,10 @@ class MacroState:
         # Integrate ego macro state and the generated next state
         # TODO: check the logic about the copy of the current object (try to avoid the use of 'copy')
         next_macro_state = MacroState()
-        next_macro_state.states_ = self.states_
+        next_macro_state.states_ = copy.deepcopy(self.states_)
         next_macro_state.states_.append(next_state)
         next_macro_state.lane_change_num_ = self.lane_change_num_
-        next_macro_state.intention_ = cur_intention
+        next_macro_state.intention_ = copy.deepcopy(cur_intention)
         if cur_intention.lat_beh_ == LateralBehavior.LaneChangeLeft or cur_intention.lat_beh_ == LateralBehavior.LaneChangeRight:
             next_macro_state.lane_change_num_ += 1
         next_macro_state.lane_info_with_speed_ = self.lane_info_with_speed_
@@ -118,11 +118,11 @@ class MctsPolicyEvaluator(PolicyEvaluator):
         return change_num * 0.3
 
     @classmethod
-    def praise(cls, states_sequence):
+    def praise(cls, macro_state):
         # Reconstruct data 
         ego_states = []
         sur_states = defaultdict(list)
-        for st in states_sequence.states_:
+        for st in macro_state.states_:
             ego_states.append(st.ego_vehicle_)
             for sur_id, sur_veh in st.surround_vehicles_.items():
                 sur_states[sur_id].append(sur_veh)
@@ -132,15 +132,19 @@ class MctsPolicyEvaluator(PolicyEvaluator):
             sur_trajs[s_id] = Trajectory(s_states)
         
         # Calculate cost
-        safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs, states_sequence.lane_speed_limit)
-        lane_change_cost = cls.calculateMultiLaneChangeCost(states_sequence.lane_change_num_)
-        efficiency_cost = cls.calculateEfficiencyCost(ego_traj, states_sequence.lane_speed_limit_)
+        safety_cost, is_collision = cls.calculateSafetyCost(ego_traj, sur_trajs, macro_state.lane_info_with_speed_[-1])
+        lane_change_cost = cls.calculateMultiLaneChangeCost(macro_state.lane_info_with_speed_[-1])
+        efficiency_cost = cls.calculateEfficiencyCost(ego_traj, macro_state.lane_info_with_speed_[-1])
         comfort_cost = cls.calculateComfortCost(ego_traj)
-        print('Safety cost: {}'.format(safety_cost))
-        print('Lane change cost: {}'.format(lane_change_cost))
-        print('Efficiency cost: {}'.format(efficiency_cost))
-        print('Comfort cost: {}'.format(comfort_cost))
-        print('All cost: {}'.format(safety_cost + lane_change_cost + efficiency_cost + comfort_cost))
+
+        # # DEBUG
+        # print('Safety cost: {}'.format(safety_cost))
+        # print('Lane change cost: {}'.format(lane_change_cost))
+        # print('Efficiency cost: {}'.format(efficiency_cost))
+        # print('Comfort cost: {}'.format(comfort_cost))
+        # print('All cost: {}'.format(safety_cost + lane_change_cost + efficiency_cost + comfort_cost))
+        # # END DEBUG
+
         return safety_cost + lane_change_cost + efficiency_cost + comfort_cost, is_collision, safety_cost, lane_change_cost, efficiency_cost
         
 # Training the tree policy
@@ -153,10 +157,11 @@ class TreePolicyTrainer:
     '''
     description: train the tree policy
     param {root} root node of the search tree
-    return {*}
+    return {root} the result of the training process
     '''    
     def train(self, root, env):
         for iter in range(self.round_limit_):
+            print('-------------------Start No. {} training epoch-------------------'.format(iter))
             front = self.tree_policy(root, env)
             reward = self.default_policy(front.macro_state_, env)
             self.backup(front, reward)
@@ -175,7 +180,7 @@ class TreePolicyTrainer:
                 node = self.best_child(node)
             else:
                 if node.fully_expanded() == False:
-                    return self.expand(node)
+                    return self.expand(node, env)
                 else:
                     node = self.best_child(node)
         return node
@@ -207,6 +212,11 @@ class TreePolicyTrainer:
     def default_policy(self, macro_state, env):
         while macro_state.terminal() == False:
             macro_state = macro_state.next_macro_state(env)
+
+            # # DEBUG
+            # macro_state.states_[-1].ego_vehicle_.print()
+            # # END DEBUG
+
         return macro_state.reward()
 
     def backup(self, node, reward):
@@ -233,6 +243,7 @@ if __name__ == '__main__':
     ego_vehicle = EgoInfoGenerator.generateOnce()
     surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
     surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+    random.seed()
 
     # Construct environment
     env = SubEnvironment()
@@ -244,6 +255,12 @@ if __name__ == '__main__':
     # Initialize start node 
     root = Node(MacroState([State(ego_vehicle, surround_vehicles, 0.0)], 0, lane_info_with_speed))
     mcts_trainer.train(root, env)
+
+    # Output the result
+    while len(root.children_) != 0:
+        root = root.best_policy()
+        root.macro_state_.intention_.print()
+    root.macro_state_.intention_.print()
 
     
     

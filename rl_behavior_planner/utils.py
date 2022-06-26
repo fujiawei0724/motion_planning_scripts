@@ -155,6 +155,9 @@ class VehicleIntention:
     def __init__(self, lat_beh, velocity_compensation):
         self.lat_beh_ = lat_beh
         self.velocity_compensation_ = velocity_compensation
+    
+    def print(self):
+        print('lat beh: {}, lon vel compensation: {}'.format(self.lat_beh_, self.velocity_compensation_))
 
 # Define lane id
 @unique

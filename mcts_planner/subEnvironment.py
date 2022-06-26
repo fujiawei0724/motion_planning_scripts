@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-30 16:54:57
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-16 21:28:42
+LastEditTime: 2022-06-26 15:08:32
 Description: Components for MCTS.
 '''
 
@@ -22,7 +22,7 @@ class State:
         self.error_situation_ = error_situation
     
     def terminal(self):
-        if self.t_ == 4.0:
+        if self.t_ + 1e-7 >= 4.0:
             return True
         if self.error_situation_:
             return True
@@ -102,8 +102,11 @@ class SubEnvironment(Environment):
         n_ego_vehicle, n_sur_vehicles = sub_forward_extender.multiAgentForwardOnce(vehicle_intention, 
                                                                                    vehicles, 
                                                                                    self.lane_speed_limit_)
+        
+        # # DEBUG
+        # n_ego_vehicle.print()
+        # # END DEBUG
                                                         
-
         # # DEBUG
         # self.ego_vehicle_ = n_ego_vehicle
         # self.surround_vehicle_ = n_sur_vehicles
@@ -111,7 +114,7 @@ class SubEnvironment(Environment):
         #     self.visualization(ax)
         # # END DEBUG
 
-        return State(n_ego_vehicle, n_sur_vehicles)
+        return State(n_ego_vehicle, n_sur_vehicles, n_ego_vehicle.time_stamp_)
         
 
 
