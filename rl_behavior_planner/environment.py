@@ -12,6 +12,8 @@ import sys
 sys.path.append('..')
 import os
 os.chdir(os.path.dirname(__file__))
+import cProfile
+import time
 import logging
 import random
 import h5py
@@ -288,8 +290,8 @@ class Environment:
                         error_situation = True
 
         # ~Stage II: Construct all vehicles
-        vehicles = copy.deepcopy(self.surround_vehicle_)
-        vehicles[0] = copy.deepcopy(self.ego_vehicle_)
+        vehicles = self.surround_vehicle_
+        vehicles[0] = self.ego_vehicle_
 
         # ~Stage III: Construct forward extender and predict result trajectories for all vehicles (ego and surround)
         forward_extender = ForwardExtender(self.lane_server_, 0.4, 4.0)
@@ -373,8 +375,8 @@ class Environment:
         self.visualizationLanes(ax)
 
         # Visualization vehicles
-        ego_vehilce = copy.deepcopy(self.ego_vehicle_)
-        surround_vehicles = copy.deepcopy(self.surround_vehicle_)
+        ego_vehilce = self.ego_vehicle_
+        surround_vehicles = self.surround_vehicle_
         ego_vehicle_polygon = Polygon(ego_vehilce.rectangle_.vertex_)
         ax.plot(*ego_vehicle_polygon.exterior.xy, c='r')
         for _, sur_veh in surround_vehicles.items():
@@ -417,7 +419,7 @@ if __name__ == '__main__':
     test_with_file_data = False
     if not test_with_file_data:
         # Test data from random generation
-        random.seed()
+        random.seed(32623)
         # Load environment data randomly
         left_lane_exist = random.randint(0, 1)
         right_lane_exist = random.randint(0, 1)
@@ -435,7 +437,7 @@ if __name__ == '__main__':
             assert False
 
         # Define action
-        action = 1
+        action = 210
 
         # Construct environment
         env = Environment()
@@ -450,7 +452,15 @@ if __name__ == '__main__':
         plt.figure(1)
         plt.title('All trajectories')
         ax_1 = plt.axes()
+
+        # cProfile.run('cur_reward, next_state, cur_done, _, _, _ = env.runOnce(action, True, ax_1)')
+
+        # Record time
+        start_time = time.time()
         cur_reward, next_state, cur_done, _, _, _ = env.runOnce(action, True, ax_1)
+        end_time = time.time()
+        print('Time consumption: {}'.format(end_time - start_time))
+
         plt.axis('equal')
 
         plt.figure(2)

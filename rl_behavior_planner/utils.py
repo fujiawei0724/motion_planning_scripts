@@ -320,29 +320,40 @@ class Lane:
         self.path_points_ = lane_path_points
         self.left_boundary_points_ = np.array(lane_left_boundary_points)
         self.right_boundary_points_ = np.array(lane_right_boundary_points)
+        self.start_point_ = start_point
+        self.end_point_ = end_point
 
         # Calculate lane points margin
         self.path_points_margin_ = lane_path_points[0].calculateDistance(lane_path_points[1])
 
     # Calculate the distance from a position to lane
     def calculatePositionToLaneDistance(self, position):
-        min_distance = float('inf')
-        for lane_path_point in self.path_points_:
-            cur_dis = position.calculateDistance(lane_path_point)
-            min_distance = min(min_distance, cur_dis)
+        A = self.end_point_.y_ - self.start_point_.y_
+        B = self.start_point_.x_ - self.end_point_.x_
+        C = self.start_point_.x_ * (-A) + self.start_point_.y_ * (-B)
+        min_distance = (abs(A * position.x_ + B * position.y_ + C)) / (np.sqrt(A ** 2.0 + B ** 2.0))
+
         return min_distance if position.y_ >= self.path_points_[0].y_ else -min_distance
 
     # Calculate the nearest path point index in a lane from a specified position
     def calculateNearestIndexInLane(self, position):
-        min_distance = float('inf')
-        index = -1
-        for i, lane_path_point in enumerate(self.path_points_):
-            cur_distance = position.calculateDistance(lane_path_point)
-            if cur_distance < min_distance:
-                min_distance = cur_distance
-                index = i
-        assert index != -1
-        return index
+        # min_distance = float('inf')
+        # index = -1
+        # for i, lane_path_point in enumerate(self.path_points_):
+        #     cur_distance = position.calculateDistance(lane_path_point)
+        #     if cur_distance < min_distance:
+        #         min_distance = cur_distance
+        #         index = i
+        # assert index != -1
+        # return index
+
+        A = self.end_point_.y_ - self.start_point_.y_
+        B = self.start_point_.x_ - self.end_point_.x_
+        C = self.start_point_.x_ * (-A) + self.start_point_.y_ * (-B)
+        x = (B * B * position.x_ - A * B * position.y_ - A * C ) / ( A * A + B * B)
+        y = (-A * B * position.x_ + A * A * position.y_ - B * C) / (A * A + B * B)
+
+        return int((x - self.start_point_.x_) / self.path_points_margin_)
 
     # Calculate the nearest path point in a lane from a specified position
     def calculateNearestPointInLane(self, position):
@@ -364,7 +375,7 @@ class Lane:
 # Lane set
 class LaneServer:
     def __init__(self, lanes):
-        self.lanes_ = copy.deepcopy(lanes)
+        self.lanes_ = lanes
 
     # Get semantic vehicles
     def getSemanticVehicles(self, vehicles):
@@ -694,7 +705,7 @@ class IdealSteerModel:
 
     # Set state information, use vehicle class represent vehicle state
     def setState(self, vehicle):
-        self.state_ = copy.deepcopy(vehicle)
+        self.state_ = vehicle
 
     # Truncate control
     def truncateControl(self, dt):
@@ -746,7 +757,7 @@ class IdealSteerModel:
                 return predict_state
 
             # Generate predict state
-            predict_state = copy.deepcopy(self.internal_state_)
+            predict_state = self.internal_state_
             iteration_num = 40
             for _ in range(0, iteration_num):
                 predict_state = linearPredict(predict_state, dt / iteration_num)
@@ -767,7 +778,7 @@ class IdealSteerModel:
                 return odeint(deriv, start_state, t)
 
             t = np.array([0.0, dt])
-            start_state = copy.deepcopy(self.internal_state_)
+            start_state = self.internal_state_
             predict_state_sequence = predict(start_state, t)
             predict_state = predict_state_sequence[1]
 
@@ -796,7 +807,7 @@ class ForwardExtender:
 
     def __init__(self, lane_server, dt, predict_time_span):
         # Information cache
-        self.lane_server_ = copy.deepcopy(lane_server)
+        self.lane_server_ = lane_server
         self.dt_ = dt
         self.predict_time_span_ = predict_time_span
 
@@ -817,7 +828,7 @@ class ForwardExtender:
                 surround_tras[this_vehicle_id].append(this_vehicle)
 
         # State cache
-        cur_vehicles = copy.deepcopy(vehicles)
+        cur_vehicles = vehicles
 
         # Determine number of forward update
         num_steps_forward = int(self.predict_time_span_ / self.dt_)
@@ -885,7 +896,7 @@ class ForwardExtender:
                 states_cache[desired_veh_state.id_] = desired_veh_state
 
             # Update current vehicle information
-            cur_vehicles = copy.deepcopy(states_cache)
+            cur_vehicles = states_cache
             Tools.refreshSemanticVehicles(cur_semantic_vehicles, cur_vehicles)
 
             # Store trajectories
