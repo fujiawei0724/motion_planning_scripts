@@ -160,41 +160,37 @@ class Environment:
         self.ego_vehicle_ = None
         self.surround_vehicle_ = None
 
-    def load(self, all_state_array):
-        # Check data
-        self.lane_info_ = None
-        self.lane_server_ = None
-        self.ego_vehicle_ = None
-        self.surround_vehicle_ = None
-        assert len(all_state_array) == 94
-        all_state_array = np.array(all_state_array)
-
-        # Load lanes data
-        left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit = all_state_array[0], all_state_array[1], all_state_array[2], all_state_array[3], all_state_array[4]
-        self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit)
-
-        # Load vehicles data
-        ego_vehicle_state_array = all_state_array[5:14]
-        sur_vehicles_states_array = all_state_array[14:].reshape(10, 8)
-        self.loadVehicleInfo(ego_vehicle_state_array, sur_vehicles_states_array)
-    
-    def load(self, lane_info_with_speed, ego_vehicle, surround_vehicles):
+    def load(self, arr_info, ego_vehicle=None, surround_vehicles=None):
         # Check data
         self.lane_info_ = None
         self.lane_server_ = None
         self.ego_vehicle_ = None
         self.surround_vehicle_ = None
 
-        # Load lane info
-        left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit = lane_info_with_speed[0], lane_info_with_speed[1], lane_info_with_speed[2], lane_info_with_speed[3], lane_info_with_speed[4]
-        self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit)
+        if ego_vehicle == None and surround_vehicles == None:
+            # Load information from array
+            assert len(arr_info) == 94
+            all_state_array = np.array(arr_info)
 
-        # Load vehicle information
-        self.ego_vehicle_ = ego_vehicle
-        self.surround_vehicle_ = surround_vehicles
+            # Load lanes data
+            left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit = all_state_array[0], all_state_array[1], all_state_array[2], all_state_array[3], all_state_array[4]
+            self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit)
 
+            # Load vehicles data
+            ego_vehicle_state_array = all_state_array[5:14]
+            sur_vehicles_states_array = all_state_array[14:].reshape(10, 8)
+            self.loadVehicleInfo(ego_vehicle_state_array, sur_vehicles_states_array)
 
+        else:
+            # Load information from vehicles information and lane information
+            # Load lane info
+            assert len(arr_info) == 5
+            left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit = arr_info[0], arr_info[1], arr_info[2], arr_info[3], arr_info[4]
+            self.loadLaneInfo(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit)
 
+            # Load vehicle information
+            self.ego_vehicle_ = ego_vehicle
+            self.surround_vehicle_ = surround_vehicles
 
     def loadLaneInfo(self, left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit):
         # Store next state for next state calculation
@@ -418,16 +414,18 @@ class Environment:
 
 
 if __name__ == '__main__':
-    test_with_file_data = True
+    test_with_file_data = False
     if not test_with_file_data:
         # Test data from random generation
-        random.seed(1564255424361266166)
+        random.seed()
         # Load environment data randomly
         left_lane_exist = random.randint(0, 1)
         right_lane_exist = random.randint(0, 1)
         center_left_distance = random.uniform(3.0, 4.5)
         center_right_distance = random.uniform(3.0, 4.5)
         lane_limited_speed = random.uniform(10.0, 25.0)
+        lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_limited_speed]
+
         # Construct ego vehicle and surround vehicles randomly
         ego_vehicle = EgoInfoGenerator.generateOnce()
         surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
@@ -436,34 +434,30 @@ if __name__ == '__main__':
         if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
             assert False
 
-        # Transform to state array
-        current_state_array = StateInterface.worldToNetDataAll(
-            [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_limited_speed], ego_vehicle,
-            surround_vehicles)
         # Define action
-        action = 35
+        action = 1
 
         # Construct environment
         env = Environment()
-        env.load(current_state_array)
+        env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
         plt.figure(0)
         plt.title('Initial states')
         ax = plt.axes()
         env.visualization(ax)
         plt.axis('equal')
-        action_info = ActionInterface.indexToBehSeq(action, True)
+        # action_info = ActionInterface.indexToBehSeq(action, True)
 
         plt.figure(1)
         plt.title('All trajectories')
         ax_1 = plt.axes()
-        cur_reward, cur_next_state_array, cur_done, _, _, _ = env.runOnce(action, True, ax_1)
+        cur_reward, next_state, cur_done, _, _, _ = env.runOnce(action, True, ax_1)
         plt.axis('equal')
 
         plt.figure(2)
         plt.title('Stored final states')
         ax_2 = plt.axes()
 
-        env.load(cur_next_state_array)
+        env.load(lane_info_with_speed, next_state[0], next_state[1])
         env.visualization(ax_2)
         plt.axis('equal')
 
