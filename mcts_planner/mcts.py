@@ -2,13 +2,15 @@
 Author: fujiawei0724
 Date: 2022-06-07 11:01:56
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-26 17:07:33
+LastEditTime: 2022-06-28 10:31:34
 Description: mcts algorithm.
 '''
 
 import sys
 sys.path.append('..')
 import random
+import cProfile
+import _pickle as cPickle
 import numpy as np
 from collections import defaultdict
 from subEnvironment import SubEnvironment, State
@@ -64,7 +66,7 @@ class MacroState:
         next_macro_state.states_ = copy.deepcopy(self.states_)
         next_macro_state.states_.append(next_state)
         next_macro_state.lane_change_num_ = self.lane_change_num_
-        next_macro_state.intention_ = copy.deepcopy(cur_intention)
+        next_macro_state.intention_ = cur_intention
         if cur_intention.lat_beh_ == LateralBehavior.LaneChangeLeft or cur_intention.lat_beh_ == LateralBehavior.LaneChangeRight:
             next_macro_state.lane_change_num_ += 1
         next_macro_state.lane_info_with_speed_ = self.lane_info_with_speed_
@@ -250,11 +252,14 @@ if __name__ == '__main__':
 
     # Construct trainer
     scalar = 1.0 / (2.0 * np.sqrt(2.0))
-    mcts_trainer = TreePolicyTrainer(20, None, scalar)
+    mcts_trainer = TreePolicyTrainer(10, None, scalar)
 
     # Initialize start node 
     root = Node(MacroState([State(ego_vehicle, surround_vehicles, 0.0)], 0, lane_info_with_speed))
     mcts_trainer.train(root, env)
+
+    # # Test running performance
+    # cProfile.run('mcts_trainer.train(root, env)')
 
     # Output the result
     while len(root.children_) != 0:

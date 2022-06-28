@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-30 16:54:57
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-26 15:08:32
+LastEditTime: 2022-06-28 10:30:31
 Description: Components for MCTS.
 '''
 
@@ -32,7 +32,7 @@ class State:
 class SubForwardExtender(ForwardExtender):
 
     def __init__(self, lane_server, dt):
-        self.lane_server_ = copy.deepcopy(lane_server)
+        self.lane_server_ = lane_server
         self.dt_ = dt
         
     # Forward one step
@@ -80,14 +80,27 @@ class SubEnvironment(Environment):
 
     # Load information from state
     def loadState(self, lane_info_with_speed, state):
-        self.load(lane_info_with_speed, state.ego_vehicle_, state.surround_vehicles_)
+        # Load all informaiton
+        if self.lane_server_ == None:
+            self.load(lane_info_with_speed, state.ego_vehicle_, state.surround_vehicles_)
+
+        # Load only vehicle information
+        else:
+            self.ego_vehicle_ = state.ego_vehicle_
+            self.surround_vehicle_ = state.surround_vehicles_
+
     
     # Simulate one step due to IDM
     def simulateSingleStep(self, vehicle_intention, ax=None):
         # Initialize state cache
-        # TODO: check this logic, try to avoid the use of copy
-        vehicles = copy.deepcopy(self.surround_vehicle_)
-        vehicles[0] = copy.deepcopy(self.ego_vehicle_)
+        vehicles = dict()
+        vehicles[0] = self.ego_vehicle_
+        for sur_veh_id, sur_veh in self.surround_vehicle_.items():
+            vehicles[sur_veh_id] = sur_veh
+
+        # # DEBUG
+        # vehicles[0].print()
+        # # END DEBUG
 
         # # DEBUG
         # if ax != None:
