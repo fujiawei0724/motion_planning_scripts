@@ -109,8 +109,6 @@ class PPOTrainer:
     def __init__(self):
         # Define device
         self.device_ = torch.device('cuda:0')
-        # Define action
-        self.action_ = np.arange(0, 231, 1)
 
         # Actor-critic
         self.actor_critic_ = ActorCritic(10, 512, 2, 231).to(self.device_)
@@ -140,15 +138,14 @@ class PPOTrainer:
 
     # Optimize model
     def optimization(self):
-        self.optimization_done_ += 1
         assert(len(self.memory_buffer_) == self.memory_buffer_size_)
         # Loss record
         loss_record = 0.0
         # Parse memory
-        observations, additional_states, actions, log_probs, rewards, dones = [], [], [], [], []
+        observations, additional_states, actions, log_probs, rewards, dones = [], [], [], [], [], []
         for data in self.memory_buffer_:
-            observations.append(data.state[0].unsqueeze(0))
-            additional_states.append(data.state[1].unsqueeze(0))
+            observations.append(data.state[0])
+            additional_states.append(data.state[1])
             actions.append(data.action)
             log_probs.append(data.log_prob)
             rewards.append(data.reward)
@@ -160,7 +157,7 @@ class PPOTrainer:
         for reward, done in zip(rewards[::-1], dones[::-1]):
             if done:
                 g_t = 0.0
-            g_t = reward.item() + self.gamma_ * g_t
+            g_t = reward + self.gamma_ * g_t
             G.insert(0, g_t)
         # Format
         observations = torch.cat(observations).to(self.device_)
@@ -171,7 +168,7 @@ class PPOTrainer:
         # Modify
         G = (G - G.mean()) / (G.std() + 1e-5)
         # Start optimization
-        for _ in range(0, self.optimization_epochs_):
+        for sub_epoch in range(0, self.optimization_epochs_):
             # Calculate state corresponding action possibility
             new_action_probs = self.actor_critic_.act(observations, additional_states)
             # Distribution
@@ -194,6 +191,7 @@ class PPOTrainer:
             # Calculate total loss
             loss = policy_loss + 0.5 * value_loss - 0.1 * entropy.mean()
             self.summary_writer_.add_scalar('loss', loss, self.optimization_done_)
+            print('Optimization epoch: {}, sub epoch: {}, loss: {}'.format(self.optimization_done_, sub_epoch, loss.item()))
             # Record loss
             loss_record += loss.item()
             # Optimize
@@ -203,6 +201,8 @@ class PPOTrainer:
 
         # Finish optimization, clear memory
         self.memory_buffer_.clear()
+        self.optimization_done_ += 1
+
         return loss_record / self.optimization_epochs_
 
     # Train
@@ -264,8 +264,8 @@ class PPOTrainer:
                     cur_additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
                     # Transform 
-                    cur_observations = torch.from_numpy(cur_observations).to(torch.float32).to(self._device).unsqueeze(0)
-                    cur_additional_states = torch.from_numpy(cur_additional_states).to(torch.float32).to(self._device).unsqueeze(0)
+                    cur_observations = torch.from_numpy(cur_observations).to(torch.float32).to(self.device_).unsqueeze(0)
+                    cur_additional_states = torch.from_numpy(cur_additional_states).to(torch.float32).to(self.device_).unsqueeze(0)
 
                     # Get action
                     with torch.no_grad():
@@ -280,15 +280,15 @@ class PPOTrainer:
                     # Calculate observations sequence and additional states for the next state
                     next_ego_vehicle, next_surround_vehicles = next_state[0], next_state[1]
                     states_simulator.loadCurrentState(lane_info_with_speed, next_ego_vehicle, next_surround_vehicles)
-                    _, next_sur_vehs_states_t_order = states_simulator.runOnce()
+                    # _, next_sur_vehs_states_t_order = states_simulator.runOnce()
                     # next_observations = image_generator.generateMultipleImages(next_sur_vehs_states_t_order)
                     # next_additional_states = np.array([next_ego_vehicle.position_.y_, next_ego_vehicle.position_.theta_, next_ego_vehicle.velocity_ / SPEED_NORM, next_ego_vehicle.acceleration_ / ACC_NORM, next_ego_vehicle.curvature_, next_ego_vehicle.steer_, lane_speed_limit])
 
                     # Record reward
-                    total_reward += reward.item()
+                    total_reward += reward
                     
                     # Store memory
-                    self.memory_buffer_.append(Transition((torch.from_numpy(cur_observations).to(torch.float32), torch.from_numpy(cur_additional_states).to(torch.float32)), action, log_prob, reward, done))
+                    self.memory_buffer_.append(Transition((cur_observations, cur_additional_states), action, log_prob, reward, done))
                     
                     # Judge if update
                     if len(self.memory_buffer_) >= self.memory_buffer_size_:
