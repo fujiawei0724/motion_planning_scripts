@@ -175,7 +175,6 @@ class DDQNTrainer:
 
     # Train
     def train(self):
-
         # Initialize states simulator to create previous observations
         states_simulator = StatesSimulator()
 
