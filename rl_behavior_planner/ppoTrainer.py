@@ -122,7 +122,7 @@ class PPOTrainer:
         self.max_vehicle_info_reset_num_ = 100
         self.gamma_ = 0.5
         self.optimization_epochs_ = 4
-        self.memory_buffer_size_ = 1000
+        self.memory_buffer_size_ = 200
         self.eps_clip_ = 0.2
         self.memory_buffer_ = []
 
@@ -144,8 +144,8 @@ class PPOTrainer:
         # Parse memory
         observations, additional_states, actions, log_probs, rewards, dones = [], [], [], [], [], []
         for data in self.memory_buffer_:
-            observations.append(data.state[0])
-            additional_states.append(data.state[1])
+            observations.append(torch.from_numpy(data.state[0]).to(torch.float32).to(self.device_).unsqueeze(0))
+            additional_states.append(torch.from_numpy(data.state[1]).to(torch.float32).to(self.device_).unsqueeze(0))
             actions.append(data.action)
             log_probs.append(data.log_prob)
             rewards.append(data.reward)
@@ -263,13 +263,13 @@ class PPOTrainer:
                     cur_observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
                     cur_additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
-                    # Transform 
-                    cur_observations = torch.from_numpy(cur_observations).to(torch.float32).to(self.device_).unsqueeze(0)
-                    cur_additional_states = torch.from_numpy(cur_additional_states).to(torch.float32).to(self.device_).unsqueeze(0)
+                    # # Transform 
+                    # cur_observations = torch.from_numpy(cur_observations).to(torch.float32).to(self.device_).unsqueeze(0)
+                    # cur_additional_states = torch.from_numpy(cur_additional_states).to(torch.float32).to(self.device_).unsqueeze(0)
 
                     # Get action
                     with torch.no_grad():
-                        action_probs = self.actor_critic_.act(cur_observations, cur_additional_states)
+                        action_probs = self.actor_critic_.act(torch.from_numpy(cur_observations).to(torch.float32).to(self.device_).unsqueeze(0), torch.from_numpy(cur_additional_states).to(torch.float32).to(self.device_).unsqueeze(0))
                         distribution = torch.distributions.Categorical(action_probs)
                         action = distribution.sample()
                         log_prob = distribution.log_prob(action)
@@ -293,6 +293,7 @@ class PPOTrainer:
                     # Judge if update
                     if len(self.memory_buffer_) >= self.memory_buffer_size_:
                         self.optimization()
+                        # torch.cuda.empty_cache()
                     
                     # Update environment and current state
                     ego_vehicle, surround_vehicles = next_ego_vehicle, next_surround_vehicles
