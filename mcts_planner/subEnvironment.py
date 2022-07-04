@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-05-30 16:54:57
 LastEditors: fujiawei0724
-LastEditTime: 2022-06-28 10:30:31
+LastEditTime: 2022-06-29 10:42:23
 Description: Components for MCTS.
 '''
 
@@ -102,10 +102,10 @@ class SubEnvironment(Environment):
         # vehicles[0].print()
         # # END DEBUG
 
-        # # DEBUG
-        # if ax != None:
-        #     self.visualization(ax)
-        # # END DEBUG
+        # DEBUG
+        if ax != None:
+            self.visualization(ax)
+        # END DEBUG
 
 
         # Calculate next states for each vehicle
@@ -120,12 +120,12 @@ class SubEnvironment(Environment):
         # n_ego_vehicle.print()
         # # END DEBUG
                                                         
-        # # DEBUG
-        # self.ego_vehicle_ = n_ego_vehicle
-        # self.surround_vehicle_ = n_sur_vehicles
-        # if ax != None:
-        #     self.visualization(ax)
-        # # END DEBUG
+        # DEBUG
+        self.ego_vehicle_ = n_ego_vehicle
+        self.surround_vehicle_ = n_sur_vehicles
+        if ax != None:
+            self.visualization(ax)
+        # END DEBUG
 
         return State(n_ego_vehicle, n_sur_vehicles, n_ego_vehicle.time_stamp_)
         
@@ -138,7 +138,7 @@ class SubEnvironment(Environment):
 
 if __name__ == '__main__':
     # Set random seed
-    random.seed(3)
+    random.seed(6)
 
     # Construct environment 
     env = SubEnvironment()
@@ -169,9 +169,9 @@ if __name__ == '__main__':
     # Calculate next state
     fig = plt.figure(0)
     ax = plt.axes()
-    n_ego_vehicle, n_surround_vehicles = env.simulateSingleStep(vehicle_intention, ax)
+    next_state = env.simulateSingleStep(vehicle_intention, ax)
     ax.axis('equal')
-    n_ego_vehicle.print()
+    next_state.ego_vehicle_.print()
 
     plt.show()
 

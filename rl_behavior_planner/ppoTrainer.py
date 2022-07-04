@@ -14,6 +14,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import h5py
 import time
 import torch
+from torch import nn
 from collections import namedtuple
 from tensorboardX import SummaryWriter
 from environment import Environment, StateInterface, ActionInterface
@@ -23,36 +24,70 @@ from utils import *
 Transition = namedtuple('Transition', ('state', 'action', 'log_prob', 'reward', 'done'))
 
 # Actor-critic
+# class ActorCritic(torch.nn.Module):
+#     # Construct
+#     def __init__(self, state_dim, action_dim, hidden_num=512):
+#         super(ActorCritic, self).__init__()
+#         # Actor
+#         self.action_layer_ = torch.nn.Sequential(
+#             torch.nn.Linear(state_dim, hidden_num),
+#             torch.nn.Tanh(),
+#             torch.nn.Linear(hidden_num, hidden_num),
+#             torch.nn.Tanh(),
+#             torch.nn.Linear(hidden_num, action_dim),
+#             torch.nn.Softmax(dim=-1)
+#         )
+
+#         # Critic
+#         self.value_layer_ = torch.nn.Sequential(
+#             torch.nn.Linear(state_dim, hidden_num),
+#             torch.nn.Tanh(),
+#             torch.nn.Linear(hidden_num, hidden_num),
+#             torch.nn.Tanh(),
+#             torch.nn.Linear(hidden_num, 1)
+#         )
+
+#     # Act
+#     def act(self, x):
+#         return self.action_layer_(x)
+
+#     # Critic
+#     def critic(self, x):
+#         return self.value_layer_(x)
+
 class ActorCritic(torch.nn.Module):
-    # Construct
-    def __init__(self, state_dim, action_dim, hidden_num=512):
+    def __init__(self, input_seq_length, hidden_dim, hidden_layer_num, output_dim):
         super(ActorCritic, self).__init__()
-        # Actor
-        self.action_layer_ = torch.nn.Sequential(
-            torch.nn.Linear(state_dim, hidden_num),
-            torch.nn.Tanh(),
-            torch.nn.Linear(hidden_num, hidden_num),
-            torch.nn.Tanh(),
-            torch.nn.Linear(hidden_num, action_dim),
-            torch.nn.Softmax(dim=-1)
+        # self.input_image_size = input_image_size
+        self.input_seq_length = input_seq_length
+        # self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        # self.hidden_layer_num = hidden_layer_num
+        self.output_dim = output_dim
+        self.lstm = nn.LSTM(40*61*1, hidden_dim, hidden_layer_num, batch_first=True)
+        self.convs = nn.ModuleList([nn.Sequential(
+                nn.Conv2d(1, 10, 21, 1),
+                nn.ReLU(True),
+                nn.MaxPool2d(2),
+                nn.Conv2d(10, 20, 11, 1),
+                nn.ReLU(True), 
+                nn.MaxPool2d(2), 
+                nn.Conv2d(20, 40, 5, 1), 
+                nn.ReLU(True), 
+            ) for _ in range(input_seq_length)
+        ])
+        self.fc1 = nn.Sequential(
+            # The additional number means the additional states length
+            nn.Linear(7 + hidden_dim, 512),
+            nn.Dropout(0.5),
+            nn.ReLU(True),
         )
-
-        # Critic
-        self.value_layer_ = torch.nn.Sequential(
-            torch.nn.Linear(state_dim, hidden_num),
-            torch.nn.Tanh(),
-            torch.nn.Linear(hidden_num, hidden_num),
-            torch.nn.Tanh(),
-            torch.nn.Linear(hidden_num, 1)
+        self.fc2 = nn.Sequential(
+            nn.Linear(512, 512), 
+            nn.Dropout(0.5), 
+            nn.ReLU(True),
         )
-
-    # Act
-    def act(self, x):
-        return self.action_layer_(x)
-
-    # Critic
-    def critic(self, x):
-        return self.value_layer_(x)
+        self.output = nn.Linear(512, output_dim)
 
 # PPO model
 class PPOTrainer:
@@ -214,7 +249,6 @@ class PPOTrainer:
                     # Judge if update
                     if len(self.memory_buffer_) >= self.memory_buffer_size_:
                         self.optimization()
-
                     # Update state
                     current_state_array = next_state_array
                     current_state_array = current_state_array.to(torch.float32).to(self.device_)
