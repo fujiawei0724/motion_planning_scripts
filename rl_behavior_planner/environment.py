@@ -140,7 +140,46 @@ class ActionInterface:
             print('Longitudinal velocity compensation: {}'.format(intention_seq_info[0]))
             for i in range(1, len(intention_seq_info)):
                 print('Latitudinal behavior: {}'.format(LateralBehavior(intention_seq_info[i])))
+        print(intention_seq_info)
         return intention_seq_info
+    
+    @classmethod
+    def indexToIntentionSeq(cls, index, length=10, with_print=False):
+        if torch.is_tensor(index):
+            index = index.item()
+        
+        single_vel_beh_num = length * 2 + 1
+        behavior_num = single_vel_beh_num * 11
+
+        lon_vel_comp = index // single_vel_beh_num - 5
+        lat_beh_val = index % single_vel_beh_num
+        lat_beh = None
+        change_begin_index = -1
+
+        if lat_beh_val == 20:
+            lat_beh = LateralBehavior.LaneKeeping
+        else:
+            if lat_beh_val % 2 == 0:
+                lat_beh = LateralBehavior.LaneChangeLeft
+            else:
+                lat_beh = LateralBehavior.LaneChangeRight
+            change_begin_index = lat_beh_val // 2
+        
+        intention_seq_info = [lon_vel_comp]
+        if lat_beh == LateralBehavior.LaneKeeping:
+            for i in range(0, length):
+                intention_seq_info.append(0)
+        else:
+            for i in range(0, length):
+                if i < change_begin_index:
+                    intention_seq_info.append(0)
+                else:
+                    intention_seq_info.append(lat_beh.value)
+        
+        return intention_seq_info
+
+
+        
 
     @classmethod
     def intentionSeqToIndex(cls, intention_seq_info):
@@ -261,9 +300,10 @@ class Environment:
         behavior_sequence = None
         intention_sequence = None
         is_final_lane_changed = None
+        intention_length = len(behavior_sequence_info)
         if with_intention:
             intention_seq = []
-            for i in range(1, 11):
+            for i in range(1, intention_length):
                 intention_seq.append(VehicleIntention(LateralBehavior(behavior_sequence_info[i]), float(behavior_sequence_info[0])))
             intention_sequence = IntentionSequence(intention_seq)
             is_final_lane_changed = True if intention_sequence.intention_seq_[-1].lat_beh_ != LateralBehavior.LaneKeeping else False
@@ -276,7 +316,7 @@ class Environment:
                         error_situation = True
         else:
             beh_seq = []
-            for i in range(1, 11):
+            for i in range(1, intention_length):
                 beh_seq.append(VehicleBehavior(LateralBehavior(behavior_sequence_info[i]),
                                                LongitudinalBehavior(behavior_sequence_info[0])))
             behavior_sequence = BehaviorSequence(beh_seq)
@@ -418,7 +458,7 @@ class Environment:
 if __name__ == '__main__':
 
     # Test data from random generation
-    random.seed(32623405)
+    random.seed()
     # Load environment data randomly
     left_lane_exist = random.randint(0, 1)
     right_lane_exist = random.randint(0, 1)
@@ -436,7 +476,7 @@ if __name__ == '__main__':
         assert False
 
     # Define action
-    action = 210
+    action = random.randint(0, 510)
 
     # Construct environment
     env = Environment()
