@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-07-09 15:32:45
 LastEditors: fujiawei0724
-LastEditTime: 2022-07-10 16:01:50
+LastEditTime: 2022-07-10 16:04:58
 Description: Calculate the point in the quintic spline with the minimum distance to a specific point.
 '''
 
@@ -122,11 +122,13 @@ class PiecewiseQuinticSpline:
         if target_index == 0:
             q_spline = QuinticSpline(self.points_list[target_index], self.points_list[target_index + 1])
             xs, ys = q_spline.generate_path()
-            return q_spline.calculate_nearest_point(x0, y0), xs, ys
+            x, y = q_spline.calculate_nearest_point(x0, y0)
+            return x, y, xs, ys
         elif target_index == self.n - 1:
             q_spline = QuinticSpline(self.points_list[target_index - 1], self.points_list[target_index])
             xs, ys = q_spline.generate_path()
-            return q_spline.calculate_nearest_point(x0, y0), xs, ys
+            x, y = q_spline.calculate_nearest_point(x0, y0)
+            return x, y, xs, ys
         else:
             q_spline_pre = QuinticSpline(self.points_list[target_index - 1], self.points_list[target_index])
             q_spline_next = QuinticSpline(self.points_list[target_index], self.points_list[target_index + 1])
@@ -176,7 +178,7 @@ def test_piecewise_quintic_spline():
     piecewise_quintic_spline = PiecewiseQuinticSpline([point_0, point_1, point_2, point_3, point_4])
 
     # Set target point
-    query_x, query_y = 4.0, 2.8
+    query_x, query_y = 4.0, 4.5
 
     # Calculate nearest point
     min_x, min_y, path_segment_x, path_segment_y = piecewise_quintic_spline.calculate_nearest_point(query_x, query_y)
