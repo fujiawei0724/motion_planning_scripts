@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-04-27 17:29:13
 LastEditors: fujiawei0724
-LastEditTime: 2022-05-10 18:50:20
+LastEditTime: 2022-07-15 21:15:33
 Description: Generate the image to represent state.
 '''
 
@@ -61,7 +61,7 @@ class ImageGenerator:
         # print(canvas.shape)
         if not drawing:
             canvas = canvas.transpose(2, 0, 1)
-        return canvas
+        return canvas / 255.0
     
     '''
     description: generate multiple images.
