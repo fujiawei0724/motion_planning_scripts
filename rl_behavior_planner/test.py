@@ -28,13 +28,18 @@ from utils import *
 SPEED_NORM = 25.0
 ACC_NORM = 3.0
 
+device = torch.device('cuda')
+
 class Tester:
 
     @staticmethod
     def testDDQN(test_eposide=100):
         # Load network
         policy_net = BackboneNetwork(10, 512, 2, 231)
-        policy_net.load_state_dict(torch.load('./DDQN_weights/checkpoint0.pt', map_location='cpu'))
+        policy_net.load_state_dict(torch.load('./DDQN_weights/checkpoint2.pt', map_location=device))
+        policy_net.to(device)
+        # policy_net.cuda()
+
         policy_net.eval()
 
         # Initialize container
@@ -87,8 +92,8 @@ class Tester:
             additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
 
             # Transform formation
-            observations = torch.from_numpy(observations).to(torch.float32).unsqueeze(0)
-            additional_states = torch.from_numpy(additional_states).to(torch.float32).unsqueeze(0)
+            observations = torch.from_numpy(observations).to(torch.float32).unsqueeze(0).to(device)
+            additional_states = torch.from_numpy(additional_states).to(torch.float32).unsqueeze(0).to(device)
 
             net_pred_action = policy_net.forward(observations, additional_states)
             _, net_pred_action_candidates = net_pred_action.topk(16, 1)

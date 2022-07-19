@@ -2,7 +2,7 @@
 Author: fujiawei0724
 Date: 2022-07-09 15:32:45
 LastEditors: fujiawei0724
-LastEditTime: 2022-07-10 16:04:58
+LastEditTime: 2022-07-10 16:07:41
 Description: Calculate the point in the quintic spline with the minimum distance to a specific point.
 '''
 
@@ -74,7 +74,7 @@ class QuinticSpline:
     
     def calculate_nearest_point(self, x0, y0):
         s = self.l * 0.5
-        for _ in range(10):
+        for _ in range(5):
             f_s = -self.a0*self.a1 - self.b0*self.b1 + (-3*self.a3**2 - 6*self.a2*self.a4 - 6*self.a1*self.a5 - 3*self.b2**2 - 6*self.b2*self.b3 - 3*self.b3**2 - 6*self.b1*self.b5)*s**5 + (-7*self.a3*self.a4 - 7*self.a2*self.a5 - 7*self.b2*self.b4 - 7*self.b3*self.b4)*s**6 + (-4*self.a4**2 - 8*self.a3*self.a5 - 4*self.b4**2 - 8*self.b2*self.b5 - 8*self.b3*self.b5)*s**7 + (-9*self.a4*self.a5 - 9*self.b4*self.b5)*s**8 + (-5*self.a5**2 - 5*self.b5**2)*s**9 + self.a1*x0 + s*(-self.a1**2 - 2*self.a0*self.a2 - self.b1*2 + 2*self.a2*x0) + self.b1*y0 + s**2*(-3*self.a1*self.a2 - 3*self.a0*self.a3 - 3*self.b0*self.b2 - 3*self.b0*self.b3 + 3*self.a3*x0 + 3*self.b2*y0 + 3*self.b3*y0) + s**3*(-2*self.a2**2 - 4*self.a1*self.a3 - 4*self.a0*self.a4 - 4*self.b1*self.b2 - 4*self.b1*self.b3 - 4*self.b0*self.b4 + 4*self.a4*x0 + 4*self.b4*y0) + s**4*(-5*self.a2*self.a3 - 5*self.a1*self.a4 - 5*self.a0*self.a5 - 5*self.b1*self.b4 - 5*self.b0*self.b5 + 5*self.a5*x0 + 5*self.b5*y0)
             f_d_s = -self.a1**2 - 2*self.a0*self.a2 - self.b1**2 + (-15*self.a3**2 - 30*self.a2*self.a4 - 30*self.a1*self.a5 - 15*self.b2**2 - 30*self.b2*self.b3 - 15*self.b3**2 - 30*self.b1*self.b5)*s**4 + (-42*self.a3*self.a4 - 42*self.a2*self.a5 - 42*self.b2*self.b4 - 42*self.b3*self.b4)*s**5 + (-28*self.a4**2 - 56*self.a3*self.a5 - 28*self.b4**2 - 56*self.b2*self.b5 - 56*self.b3*self.b5)*s**6 + (-72*self.a4*self.a5 - 72*self.b4*self.b5)*s**7 + (-45*self.a5**2 - 45*self.b5**2)*s**8 + 2*self.a2*x0 + s*(-6*self.a1*self.a2 - 6*self.a0*self.a3 - 6*self.b0*self.b2 - 6*self.b0*self.b3 + 6*self.a3*x0 + 6*self.b2*y0 + 6*self.b3*y0) + s**2*(-6*self.a2**2 - 12*self.a1*self.a3 - 12*self.a0*self.a4 - 12*self.b1*self.b2 - 12*self.b1*self.b3 - 12*self.b0*self.b4 + 12*self.a4*x0 + 12*self.b4*y0) + s**3*(-20*self.a2*self.a3 - 20*self.a1*self.a4 - 20*self.a0*self.a5 - 20*self.b1*self.b4 - 20*self.b0*self.b5 + 20*self.a5*x0 + 20*self.b5*y0)
             s = s - f_s / f_d_s
@@ -178,7 +178,7 @@ def test_piecewise_quintic_spline():
     piecewise_quintic_spline = PiecewiseQuinticSpline([point_0, point_1, point_2, point_3, point_4])
 
     # Set target point
-    query_x, query_y = 4.0, 4.5
+    query_x, query_y = 2.0, 1.5
 
     # Calculate nearest point
     min_x, min_y, path_segment_x, path_segment_y = piecewise_quintic_spline.calculate_nearest_point(query_x, query_y)
