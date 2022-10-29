@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 import torch
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 from scipy.integrate import odeint
 from ddqnNet import DQN
 from lstm import BackboneNetwork
@@ -205,12 +205,20 @@ class Tester:
 
 
     @staticmethod
-    def testPPO(test_episode=100):
+    def testPPO(test_episode, index):
+        f = open('./PPO_results/data_{}.txt'.format(index), 'w')
+        # # Load network
+        # state_size = 94
+        # action_size = 231
+        # policy_net = ActorCritic(state_size, action_size)
+        # policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location='cpu'))
+        # policy_net.eval()
         # Load network
-        state_size = 94
-        action_size = 231
-        policy_net = ActorCritic(state_size, action_size)
-        policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location='cpu'))
+        policy_net = ActorCritic(10, 512, 2, 231)
+        policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location=device))
+        policy_net.to(device)
+        # policy_net.cuda()
+
         policy_net.eval()
 
         # Initialize container
@@ -218,35 +226,58 @@ class Tester:
         best_rewards = []
         output_actions = []
         output_rewards = []
+        output_actions_candidates = []
+
+        # Initialize utils
+        states_simulator = StatesSimulator()
+        env = Environment()
 
         epoch = 0
         match_num = 0
         while epoch < test_episode:
             # Load environment data randomly
-            env = Environment()
             left_lane_exist = random.randint(0, 1)
             right_lane_exist = random.randint(0, 1)
             center_left_distance = random.uniform(3.0, 4.5)
             center_right_distance = random.uniform(3.0, 4.5)
+            lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
             lane_speed_limit = random.uniform(10.0, 25.0)
+            lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit]
+
+            # Initialize image generator
+            image_generator = ImageGenerator(lane_info)
+
             # Construct ego vehicle and surround vehicles randomly
             ego_vehicle = EgoInfoGenerator.generateOnce()
             surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
             surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+            
             # Judge whether available
             if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
                 print('Initial situation error, reset vehicles information!!!')
                 continue
 
             # Transform to state array
-            current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
-            env.load(current_state_array)
-            current_state_array = torch.from_numpy(current_state_array).to(torch.float32)
-
+            # current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
+            env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
+            # current_state_array = torch.from_numpy(current_state_array).to(torch.float32)
 
             # Calculate action predicted by network and its reward
-            net_pred_action = policy_net.act(current_state_array)
-            net_pred_action = net_pred_action.unsqueeze(0).max(1)[1].item()
+
+            # Calculate observations sequence and additional states for the current state
+            states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
+            _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
+            observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
+            additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+
+            # Transform formation
+            observations = torch.from_numpy(observations).to(torch.float32).unsqueeze(0).to(device)
+            additional_states = torch.from_numpy(additional_states).to(torch.float32).unsqueeze(0).to(device)
+
+            net_pred_action = policy_net.act(observations, additional_states)
+            _, net_pred_action_candidates = net_pred_action.topk(16, 1)
+            print(net_pred_action_candidates)
+            net_pred_action = net_pred_action.max(1)[1].item()
             print('Net pred action: {}'.format(net_pred_action))
             net_pred_action_reward, _, _, _, _, _ = env.runOnce(net_pred_action)
 
@@ -255,12 +286,16 @@ class Tester:
             for action in range(0, 231):
                 print('Episode: {}, calculating action: {}'.format(epoch, action))
                 real_rewards[action], _, _, _, _, _ = env.runOnce(action)
+            
             # Get best action and reward
             best_action = np.argmax(real_rewards)
             best_reward = real_rewards[best_action]
 
+            print('Best action: {}, best reward: {}'.format(best_action, best_reward))
+
             output_actions.append(net_pred_action)
             output_rewards.append(net_pred_action_reward)
+            output_actions_candidates.append(net_pred_action_candidates)
             best_actions.append(best_action)
             best_rewards.append(best_reward)
 
@@ -268,19 +303,157 @@ class Tester:
             if net_pred_action == best_action:
                 match_num += 1
             print('Test episode: {}, match num: {}, success rate: {}'.format(epoch, match_num, match_num / epoch))
+        
         print('Output actions: {}'.format(output_actions))
+        f.writelines('Output actions: {}'.format(output_actions))
+        f.write('\n')
+        
         print('Output rewards: {}'.format(output_rewards))
+        f.writelines('Output rewards: {}'.format(output_rewards))
+        f.write('\n')
+        
+        print('Ouput actions candidates: {}'.format(output_actions_candidates))
+        f.writelines('Ouput actions candidates: {}'.format(output_actions_candidates))
+        f.write('\n')
+
         print('Best actions: {}'.format(best_actions))
+        f.writelines('Best actions: {}'.format(best_actions))
+        f.write('\n')
+
         print('Best rewards: {}'.format(best_rewards))
+        f.writelines('Best rewards: {}'.format(best_rewards))
+        f.write('\n')
+
         print('Final success rate: {}'.format(match_num / epoch))
+        f.writelines('Final success rate: {}'.format(match_num / epoch))
+        f.write('\n')
 
 
 
 
 
 if __name__ == '__main__':
-    # Tester.testPPO()
-    # Tester.testDDPG()
-    Tester.testDDQN()
+    for test_epoch in range(1):
+        f = open('./PPO_results_1029/data_{}.txt'.format(test_epoch), 'w')
+        # # Load network
+        # state_size = 94
+        # action_size = 231
+        # policy_net = ActorCritic(state_size, action_size)
+        # policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location='cpu'))
+        # policy_net.eval()
+        # Load network
+        policy_net = ActorCritic(10, 512, 2, 231)
+        policy_net.load_state_dict(torch.load('./PPO_weights/checkpoint.pth', map_location=device))
+        policy_net.to(device)
+        # policy_net.cuda()
+
+        policy_net.eval()
+
+        # Initialize container
+        best_actions = []
+        best_rewards = []
+        output_actions = []
+        output_rewards = []
+        output_actions_candidates = []
+
+        # Initialize utils
+        states_simulator = StatesSimulator()
+        env = Environment()
+
+        epoch = 0
+        match_num = 0
+        while epoch < 100:
+            # Load environment data randomly
+            left_lane_exist = random.randint(0, 1)
+            right_lane_exist = random.randint(0, 1)
+            center_left_distance = random.uniform(3.0, 4.5)
+            center_right_distance = random.uniform(3.0, 4.5)
+            lane_info = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance]
+            lane_speed_limit = random.uniform(10.0, 25.0)
+            lane_info_with_speed = [left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit]
+
+            # Initialize image generator
+            image_generator = ImageGenerator(lane_info)
+
+            # Construct ego vehicle and surround vehicles randomly
+            ego_vehicle = EgoInfoGenerator.generateOnce()
+            surround_vehicles_generator = AgentGenerator(left_lane_exist, right_lane_exist, center_left_distance, center_right_distance)
+            surround_vehicles = surround_vehicles_generator.generateAgents(random.randint(0, 10))
+            
+            # Judge whether available
+            if not Tools.checkInitSituation(ego_vehicle, surround_vehicles):
+                print('Initial situation error, reset vehicles information!!!')
+                continue
+
+            # Transform to state array
+            # current_state_array = StateInterface.worldToNetDataAll([left_lane_exist, right_lane_exist, center_left_distance, center_right_distance, lane_speed_limit], ego_vehicle, surround_vehicles)
+            env.load(lane_info_with_speed, ego_vehicle, surround_vehicles)
+            # current_state_array = torch.from_numpy(current_state_array).to(torch.float32)
+
+            # Calculate action predicted by network and its reward
+
+            # Calculate observations sequence and additional states for the current state
+            states_simulator.loadCurrentState(lane_info_with_speed, ego_vehicle, surround_vehicles)
+            _, cur_sur_vehs_states_t_order = states_simulator.runOnce()
+            observations = image_generator.generateMultipleImages(cur_sur_vehs_states_t_order)
+            additional_states = np.array([ego_vehicle.position_.y_, ego_vehicle.position_.theta_, ego_vehicle.velocity_ / SPEED_NORM, ego_vehicle.acceleration_ / ACC_NORM, ego_vehicle.curvature_, ego_vehicle.steer_, lane_speed_limit])
+
+            # Transform formation
+            observations = torch.from_numpy(observations).to(torch.float32).unsqueeze(0).to(device)
+            additional_states = torch.from_numpy(additional_states).to(torch.float32).unsqueeze(0).to(device)
+
+            net_pred_action = policy_net.act(observations, additional_states)
+            _, net_pred_action_candidates = net_pred_action.topk(16, 1)
+            print(net_pred_action_candidates)
+            net_pred_action = net_pred_action.max(1)[1].item()
+            print('Net pred action: {}'.format(net_pred_action))
+            net_pred_action_reward, _, _, _, _, _ = env.runOnce(net_pred_action)
+
+            # Traverse calculate the best action with the largest reward
+            real_rewards = np.array([0.0 for _ in range(231)])
+            for action in range(0, 231):
+                print('Episode: {}, calculating action: {}'.format(epoch, action))
+                real_rewards[action], _, _, _, _, _ = env.runOnce(action)
+            
+            # Get best action and reward
+            best_action = np.argmax(real_rewards)
+            best_reward = real_rewards[best_action]
+
+            print('Best action: {}, best reward: {}'.format(best_action, best_reward))
+
+            output_actions.append(net_pred_action)
+            output_rewards.append(net_pred_action_reward)
+            output_actions_candidates.append(net_pred_action_candidates)
+            best_actions.append(best_action)
+            best_rewards.append(best_reward)
+
+            epoch += 1
+            if net_pred_action == best_action:
+                match_num += 1
+            print('Test episode: {}, match num: {}, success rate: {}'.format(epoch, match_num, match_num / epoch))
+        
+        print('Output actions: {}'.format(output_actions))
+        f.writelines('Output actions: {}'.format(output_actions))
+        f.write('\n')
+        
+        print('Output rewards: {}'.format(output_rewards))
+        f.writelines('Output rewards: {}'.format(output_rewards))
+        f.write('\n')
+        
+        print('Ouput actions candidates: {}'.format(output_actions_candidates))
+        f.writelines('Ouput actions candidates: {}'.format(output_actions_candidates))
+        f.write('\n')
+
+        print('Best actions: {}'.format(best_actions))
+        f.writelines('Best actions: {}'.format(best_actions))
+        f.write('\n')
+
+        print('Best rewards: {}'.format(best_rewards))
+        f.writelines('Best rewards: {}'.format(best_rewards))
+        f.write('\n')
+
+        print('Final success rate: {}'.format(match_num / epoch))
+        f.writelines('Final success rate: {}'.format(match_num / epoch))
+        f.write('\n')
 
 
